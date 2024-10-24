@@ -13,7 +13,7 @@ import {SvgXml} from 'react-native-svg';
 import ListBiblePage from './ListBiblePage';
 import ListAudioPage from './ListAudioPage';
 import ImportResourcePage from './ImportResourcePage';
-import ResourcePage from './ResourcePage';
+// import ResourcePage from './ResourcePage';
 import {Portal, Provider} from 'react-native-paper';
 // import ImportReferenceCollectionModal from './ImportReferenceCollectionModal';
 
@@ -22,9 +22,11 @@ import {Portal, Provider} from 'react-native-paper';
 //   onClose: () => void;
 // }
 
-const ImportReferenceModal: React.FC<ImportReferenceModalProps> = ({}) => {
+// const ImportReferenceModal: React.FC<ImportReferenceModalProps> = ({}) => {
+  const ImportReferenceModal: React.FC = ({}) => {
   const [selectedSubTab, setSelectedSubTab] = useState<
-    'Audio' | 'Bible' | 'Resource' | 'Collection'
+    // 'Audio' | 'Bible' | 'Resource' | 'Collection'
+    'Audio' | 'Bible' | 'Collection'
   >('Audio');
 
   // const [isPortrait, setIsPortrait] = useState(true);
@@ -83,7 +85,7 @@ const ImportReferenceModal: React.FC<ImportReferenceModalProps> = ({}) => {
           Bible
         </Text>
       </TouchableOpacity>
-      <TouchableOpacity
+      {/* <TouchableOpacity
         style={[
           styles.subTabButton,
           selectedSubTab === 'Resource' && styles.activeSubTab,
@@ -101,7 +103,7 @@ const ImportReferenceModal: React.FC<ImportReferenceModalProps> = ({}) => {
           ]}>
           Resource
         </Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
       <TouchableOpacity
         style={[
           styles.subTabButton,
@@ -145,7 +147,8 @@ const ImportReferenceModal: React.FC<ImportReferenceModalProps> = ({}) => {
               ) : selectedSubTab === 'Collection' ? (
                 <ImportResourcePage />
               ) : (
-                <ResourcePage />
+                // <ResourcePage />
+                <></>
               )}
             </View>
           </View>

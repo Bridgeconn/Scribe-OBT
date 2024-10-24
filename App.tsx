@@ -23,7 +23,7 @@ export type RootStackParamList = {
   'Sign up': undefined;
   CreateProject: undefined;
   ReferencePage: undefined;
-  ProjectEditor: {projectId: string; projectName: string};
+  ProjectEditor: {projectId: string; projectName: string ,projectPath:string,referenceRes:string};
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -37,13 +37,13 @@ export default function App() {
   React.useEffect(() => {
     let permission;
     checkManagePermission().then(isManagePermitted => {
-      console.log(isManagePermitted);
+      console.log("Permission for file access granted",isManagePermitted);
       permission = isManagePermitted;
     });
     // request rights to manage
-    if (permission === false) {
+    if (permission===false) {
       requestManagePermission().then(isManagePermitted => {
-        console.log(isManagePermitted);
+        console.log("Permission for file access granted",isManagePermitted);
       });
     }
     const checkAndCreateFolderAndFile = async () => {
@@ -125,7 +125,12 @@ export default function App() {
         <Stack.Screen
           name="ProjectEditor"
           component={ProjectEditorScreen}
-          options={{title: 'Project Editor'}}
+          options={{title: 'Project Editor',  headerStyle: {
+            height: 45, // Set your desired height here
+          },
+          headerTitleStyle: {
+            fontSize: 20, // Adjust the font size if needed
+          },}}
         />
       </Stack.Navigator>
     </NavigationContainer>

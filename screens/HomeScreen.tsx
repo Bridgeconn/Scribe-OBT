@@ -37,7 +37,9 @@ type Props = {
 
 const HomeScreen: React.FC<Props> = ({navigation}) => {
   const [search, setSearch] = useState('');
-  const [projects, setProjects] = useState<{id: string; name: string}[]>([]);
+  const [projects, setProjects] = useState<{
+    [x: string]: string;id: string; name: string
+}[]>([]);
   const [menuVisible, setMenuVisible] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
@@ -61,6 +63,8 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
           const loadedProjects = appInfo.projects.map((project, index) => ({
             id: `${index + 1}`,
             name: project.projectName,
+            path: project.projectPath,
+            reference:project.ReferenceResource,
           }));
           setProjects(loadedProjects);
         } else {
@@ -74,6 +78,7 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
 
     loadProjects();
   }, []);
+
 
   useEffect(() => {
     if (update === true) {
@@ -89,6 +94,8 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
             const loadedProjects = appInfo.projects.map((project, index) => ({
               id: `${index + 1}`,
               name: project.projectName,
+              path: project.projectPath,
+              reference: project.ReferenceResource
             }));
             setProjects(loadedProjects);
           } else {
@@ -154,8 +161,8 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
     closeDrawer();
   };
 
-  const navigateToProjectEditor = (id: string, name: string) => {
-    navigation.navigate('ProjectEditor', {projectId: id, projectName: name});
+  const navigateToProjectEditor = (id: string, name: string , path:string, reference:string) => {
+    navigation.navigate('ProjectEditor', {projectId: id, projectName: name, projectPath:path, referenceRes:reference});
   };
 
   const handleImport = async (folderPath: string) => {
@@ -190,7 +197,7 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
             keyExtractor={item => item.id}
             renderItem={({item}) => (
               <TouchableOpacity
-                onPress={() => navigateToProjectEditor(item.id, item.name)}
+                onPress={() => navigateToProjectEditor(item.id, item.name, item.path , item.reference)}
                 style={styles.touchable}>
                 <View style={styles.projectContainer}>
                   <Text style={styles.projectName}>{item.name}</Text>
@@ -213,7 +220,7 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
                         />
                       }>
                       <Menu.Item onPress={handleExport} title="Export" />
-                      <Menu.Item onPress={() => {}} title="Sync" disabled />
+                      {/* <Menu.Item onPress={() => {}} title="Sync" disabled /> */}
                     </Menu>
                   </View>
                 </View>
@@ -257,7 +264,7 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
               style={styles.drawerButton}>
               Import Project
             </Button>
-            <Button
+            {/* <Button
               icon="folder-plus"
               onPress={() => {
                 navigation.navigate('CreateProject');
@@ -267,7 +274,7 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
               textColor="#fff"
               style={styles.drawerButton}>
               Create Project
-            </Button>
+            </Button> */}
             <Button
               icon="book"
               onPress={() => {

@@ -32,6 +32,7 @@ const ImportResourcePage: React.FC = () => {
 
   const [showFolderPicker, setShowFolderPicker] = useState<boolean>(false);
   const [selectedFolder, setSelectedFolder] = useState<string>('');
+  const [fileTransferMessage, setFileTransferMessage] = useState<string>('');
   const [isImporting, setIsImporting] = useState<boolean>(false);
   // const [startTime, setStartTime] = useState<number | null>(null);
   // const [endTime, setEndTime] = useState<number | null>(null);
@@ -69,6 +70,7 @@ const ImportResourcePage: React.FC = () => {
         item.name.toLowerCase().endsWith('.sfm')
       ) {
         console.log(`Converting file: ${item.path}`);
+        setFileTransferMessage(`transferring file: ${item.path}`)
         await convertUsfmToJson(item.path, itemDestination);
       } else {
         await RNFS.copyFile(item.path, itemDestination);
@@ -168,7 +170,7 @@ const ImportResourcePage: React.FC = () => {
 
           // Save the updated appInfo.json file
           await RNFS.writeFile(jsonFilePath, JSON.stringify(appInfo, null, 2));
-
+          setFileTransferMessage("");
           handleCancel();
           Alert.alert('Success', 'Project imported successfully.');
         } else {
