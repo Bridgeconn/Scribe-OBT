@@ -13,8 +13,10 @@ import books from '../assets/versification.json';
 
 interface Props {
   onSelectionChange: (book: string, chapter: number, verse: number) => void;
+  currentScope: {[key: string]: any};
+
 }
-const BookChapterVerseSelector: React.FC<Props> = ({onSelectionChange}) => {
+const BookChapterVerseSelector: React.FC<Props> = ({onSelectionChange,currentScope}) => {
   const [selectedTestament, setSelectedTestament] = useState<string | null>(
     'Old Testament',
   );
@@ -26,9 +28,9 @@ const BookChapterVerseSelector: React.FC<Props> = ({onSelectionChange}) => {
   const [book, setBook] = useState<string>('');
   const [chapter, setChapter] = useState<number>(1);
   const [verse, setVerse] = useState<number>(1);
-  const test = {
-    currentScope: {EST: [], EXO: [], LUK: [], MRK: [], PSA: [], ACT: []},
-  };
+  // const test = {
+  //   currentScope: {EST: [], EXO: [], LUK: [], MRK: [], PSA: [], ACT: []},
+  // };
 
   const [availableBooks, setAvailableBooks] = useState<string[]>([]);
   useEffect(() => {
@@ -49,22 +51,26 @@ const BookChapterVerseSelector: React.FC<Props> = ({onSelectionChange}) => {
       }
     };
   }, []);
-  useEffect(() => {
-    const availableBook = Object.keys(test.currentScope);
-    const oldTestamentBooks = Object.keys(books.maxVerses).slice(0, 39); // First 39 keys
-    const newTestamentBooks = Object.keys(books.maxVerses).slice(39, 66); // Next 27 keys
+   useEffect(() => {
+    if (currentScope && Object.keys(currentScope).length > 0) {
+      const scopeBooks = Object.keys(currentScope);
+      const oldTestamentBooks = Object.keys(books.maxVerses).slice(0, 39).filter(book => scopeBooks.includes(book));
+      const newTestamentBooks = Object.keys(books.maxVerses).slice(39, 66).filter(book => scopeBooks.includes(book));
 
-    const combinedBooks = oldTestamentBooks
-      .filter(book => availableBook.includes(book))
-      .concat(newTestamentBooks.filter(book => availableBook.includes(book)));
-    setAvailableBooks(combinedBooks);
-    setExpandedBook(combinedBooks[0]);
-    setBook(combinedBooks[0]);
-    setExpandedChapter(1); // Collapse chapter when new book is expanded
-    setChapter(1);
-    setSelectedVerse(1); // Clear selected verse
-    setVerse(1);
-  }, []);
+      const combinedBooks = [...oldTestamentBooks, ...newTestamentBooks];
+      setAvailableBooks(combinedBooks);
+      
+      if (combinedBooks.length > 0) {
+        setExpandedBook(combinedBooks[0]);
+        setBook(combinedBooks[0]);
+        setExpandedChapter(1);
+        setChapter(1);
+        setSelectedVerse(1);
+        setVerse(1);
+      }
+    }
+  }, [currentScope]);
+
 
   useEffect(() => {
     if (book && chapter && verse) {
@@ -190,15 +196,14 @@ const BookChapterVerseSelector: React.FC<Props> = ({onSelectionChange}) => {
   };
 
   const renderBooks = () => {
-    const availableBooks = Object.keys(test.currentScope);
-    // Split Old Testament and New Testament books
-    const oldTestamentBooks = Object.keys(books.maxVerses).slice(0, 39); // First 39 keys
-    const newTestamentBooks = Object.keys(books.maxVerses).slice(39, 66); // Next 27 keys
+    // Use availableBooks instead of filtering again
+    const oldTestamentBooks = availableBooks.filter(book => Object.keys(books.maxVerses).indexOf(book) < 39);
+    const newTestamentBooks = availableBooks.filter(book => Object.keys(books.maxVerses).indexOf(book) >= 39);
 
     const booksToRender =
       selectedTestament === 'Old Testament'
-        ? oldTestamentBooks.filter(book => availableBooks.includes(book))
-        : newTestamentBooks.filter(book => availableBooks.includes(book));
+        ? oldTestamentBooks
+        : newTestamentBooks;
 
     return (
       <FlatList
@@ -209,7 +214,7 @@ const BookChapterVerseSelector: React.FC<Props> = ({onSelectionChange}) => {
               onPress={() => toggleBook(item)}
               style={[
                 styles.bookButton,
-                expandedBook === item && {backgroundColor: '#f0f0f0'}, // Highlight expanded book
+                expandedBook === item && {backgroundColor: '#f0f0f0'},
               ]}>
               <Text style={styles.bookText}>{item}</Text>
               <Icon
@@ -226,6 +231,7 @@ const BookChapterVerseSelector: React.FC<Props> = ({onSelectionChange}) => {
       />
     );
   };
+  
   const navigatePrev = () => {
     const currentIndex = availableBooks.indexOf(expandedBook);
     if (currentIndex === -1) return; // If the current book is not found in the availableBooks
@@ -326,10 +332,14 @@ const BookChapterVerseSelector: React.FC<Props> = ({onSelectionChange}) => {
         <TouchableOpacity
           style={isPortrait ? styles.dropdown : styles.dropdownLandscape}
           onPress={() => setDropdownVisible(true)}>
+            <View style={{flexDirection:'row',justifyContent:'space-evenly',width:'55%'}}>
           <Text style={styles.dropdownText}>
-            {/* {expandedBook} {expandedChapter} : {selectedVerse} */}
-            {book} {chapter} : {verse}
-          </Text>
+            {book}
+          </Text> 
+          <Text style={styles.dropdownText}>
+             {chapter} :  {verse}
+          </Text> 
+          </View>
           <Icon
             name="arrow-drop-down"
             style={styles.dropdownIcon}
@@ -419,16 +429,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between', // Changed to space-between
     padding: 5,
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
+    backgroundColor:'#fff'
   },
   dropdownContainerLandscape: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between', // Changed to space-between
     padding: 5,
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
+    backgroundColor:'#fff'
+
+    // height:
   },
   dropdown: {
     flexDirection: 'row',

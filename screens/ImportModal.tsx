@@ -28,6 +28,8 @@ const ImportModal: React.FC<ImportModalProps> = ({
   const [showFolderPicker, setShowFolderPicker] = useState<boolean>(false);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [convertingFileMessage,setConvertingFileMessage]=useState("");
+
   // const [startTime, setStartTime] = useState<number | null>(null);
   // const [endTime, setEndTime] = useState<number | null>(null);
 
@@ -47,6 +49,8 @@ const ImportModal: React.FC<ImportModalProps> = ({
     const jsonContent = JSON.stringify(usfmJson, null, 2);
     const jsonFilePath = destinationPath.replace(/\.(usfm|SFM)$/i, '.json');
     await RNFS.writeFile(jsonFilePath, jsonContent, 'utf8');
+    setConvertingFileMessage("");
+    
   };
 
   const copyDirectory = async (source: string, destination: string) => {
@@ -64,9 +68,13 @@ const ImportModal: React.FC<ImportModalProps> = ({
         item.name.toLowerCase().endsWith('.sfm')
       ) {
         console.log(`Converting file: ${item.path}`);
+        let chars = item.path.split('/');
+// console.log(chars[8]);
+        setConvertingFileMessage(`Importing file : ${chars[8]}`);
         await convertUsfmToJson(item.path, itemDestination);
       } else {
         await RNFS.copyFile(item.path, itemDestination);
+
       }
     }
   };
@@ -165,6 +173,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
           const newProject = {
             projectName: projectName,
             projectPath: destinationPath,
+            referenceResource: ""
           };
 
           appInfo.projects.push(newProject);
@@ -228,6 +237,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
               <Text style={{color: '#000'}}>
                 Please wait. Importing Project in progress...
               </Text>
+              <Text style={{color: '#26de81'}}>{convertingFileMessage}</Text>
             </View>
           ) : selectedFolder ? (
             <View>
