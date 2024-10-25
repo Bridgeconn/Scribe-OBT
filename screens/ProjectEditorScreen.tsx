@@ -123,23 +123,48 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
   const updateMetadata = (booleanData: boolean) => {
     setRefreshMetadata(!booleanData);
   };
-  useEffect(() => {
-    const loadProjectMetadata = async () => {
-      const metadataPath = `${projectPath}/metadata.json`;
-      try {
-        const content = await RNFS.readFile(metadataPath, 'utf8');
-        const parsedMetadata = JSON.parse(content);
-        setProjectMetadata(parsedMetadata);
-      } catch (error) {
-        console.error('Error reading project metadata:', error);
-        setProjectMetadata(null);
-      }
-    };
-    if (refreshMetadata) {
-      loadProjectMetadata();
-      updateMetadata(!refreshMetadata)
+  // useEffect(() => {
+  //   const loadProjectMetadata = async () => {
+  //     const metadataPath = `${projectPath}/metadata.json`;
+  //     try {
+  //       const content = await RNFS.readFile(metadataPath, 'utf8');
+  //       const parsedMetadata = JSON.parse(content);
+  //       setProjectMetadata(parsedMetadata);
+  //     } catch (error) {
+  //       console.error('Error reading project metadata:', error);
+  //       setProjectMetadata(null);
+  //     }
+  //   };
+  //   if (refreshMetadata) {
+  //     loadProjectMetadata();
+  //     updateMetadata(!refreshMetadata)
+  //   }
+  // }, [projectPath]);
+
+  const loadProjectMetadata = useCallback(async () => {
+    const metadataPath = `${projectPath}/metadata.json`;
+    try {
+      const content = await RNFS.readFile(metadataPath, 'utf8');
+      const parsedMetadata = JSON.parse(content);
+      setProjectMetadata(parsedMetadata);
+    } catch (error) {
+      console.error('Error reading project metadata:', error);
+      setProjectMetadata(null);
     }
   }, [projectPath]);
+
+  // Add this function to handle metadata updates from AudioRecorder
+  const handleMetadataUpdate = useCallback(() => {
+    loadProjectMetadata();
+  }, [loadProjectMetadata]);
+
+  // Modify the useEffect to use the new loadProjectMetadata function
+  useEffect(() => {
+    if (refreshMetadata) {
+      loadProjectMetadata();
+      updateMetadata(!refreshMetadata);
+    }
+  }, [refreshMetadata, loadProjectMetadata]);
 
   // const generateAudioUrl = () => {
   //   if (selectedRef && selectedBook && selectedChapter && selectedVerse && metadata) {
@@ -671,7 +696,6 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
                 />
               </ScrollView> */}
             </View>
-            {/* <AudioRecorder /> */}
             <View style={styles.audioRecorderContainer}>
 
               <AudioRecorder
@@ -679,7 +703,10 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
                 projectPath={projectPath}
                 selectedBook={selectedBook}
                 selectedChapter={selectedChapter}
-                selectedVerse={selectedVerse} />
+                selectedVerse={selectedVerse}
+                onMetadataUpdate={handleMetadataUpdate} // Add this prop
+                />
+                
             </View>
           </View>
         </View>
