@@ -237,7 +237,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
               <Text style={{color: '#000'}}>
                 Please wait. Importing Project in progress...
               </Text>
-              <Text style={{color: '#26de81'}}>{convertingFileMessage}</Text>
+              <Text style={{color: '#ff7f50'}}>{convertingFileMessage}</Text>
             </View>
           ) : selectedFolder ? (
             <View>

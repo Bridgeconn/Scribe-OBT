@@ -6,47 +6,61 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
-import {TextInput} from 'react-native-paper';
+import {TextInput, Dialog, Portal, Button} from 'react-native-paper';
 import {SvgXml} from 'react-native-svg';
 import RNFS from 'react-native-fs';
-import {Portal} from 'react-native-paper'; // Import Portal
-// import ImportReferenceCollectionModal from './ImportReferenceCollectionModal';
-import FolderPicker from './FolderPicker';
 const grammar = require('usfm-grammar');
+import FolderPicker from './FolderPicker';
 
-const ImportResourcePage: React.FC = () => {
-  // const [importCollectionDialogVisible, setImportCollectionDialogVisible] =
-  //   useState(false);
-  // const [updateCollection, setUpdateCollection] = useState(false);
+interface AppInfo {
+  references?: {
+    referenceName: string;
+    referencePath: string;
+    referenceType: string[];
+  }[];
+}
 
-  // const handleImportCollection = async (folderPath: string) => {
-  //   console.log('Imported folder path:', folderPath);
-  // };
+interface Ingredient {
+  mimeType?: string;
+  mime_type?: string;
+}
 
+// Type guard to check if an object is of type `Ingredient`
+const isIngredient = (obj: any): obj is Ingredient => {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    ('mimeType' in obj || 'mime_type' in obj)
+  );
+};
+
+const ImportResourcePage = () => {
   const folderIcon =
     '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="black" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25h6.621a2.25 2.25 0 011.743.833l.887 1.11a2.25 2.25 0 001.743.833h6.621a2.25 2.25 0 012.25 2.25v7.5a2.25 2.25 0 01-2.25 2.25H3.75a2.25 2.25 0 01-2.25-2.25v-10.5a2.25 2.25 0 012.25-2.25z"></path></svg>';
 
   const infoIcon =
     '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="black" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v.01M12 12v3m0 0v.01M12 21c-4.971 0-9-4.029-9-9s4.029-9 9-9 9 4.029 9 9-4.029 9-9 9z"></path></svg>';
 
-  const [showFolderPicker, setShowFolderPicker] = useState<boolean>(false);
-  const [selectedFolder, setSelectedFolder] = useState<string>('');
-  const [fileTransferMessage, setFileTransferMessage] = useState<string>('');
-  const [isImporting, setIsImporting] = useState<boolean>(false);
-  // const [startTime, setStartTime] = useState<number | null>(null);
-  // const [endTime, setEndTime] = useState<number | null>(null);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [fileTransferMessage, setFileTransferMessage] = useState('');
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
-  const handleSelectFolder = (path: string) => {
+  const handleSelectFolder = (path: React.SetStateAction<string>) => {
     setSelectedFolder(path);
     setShowFolderPicker(false);
-    // onImport(path);
+    setShowImportDialog(true);
   };
 
-  const convertUsfmToJson = async (
-    sourcePath: string,
-    destinationPath: string,
-  ) => {
+  const handleCancel = () => {
+    setSelectedFolder('');
+    setShowImportDialog(false);
+  };
+
+  const convertUsfmToJson = async (sourcePath: string, destinationPath: string) => {
     const usfmContent = await RNFS.readFile(sourcePath, 'utf8');
     const usfmParser = new grammar.USFMParser(usfmContent);
     const usfmJson = usfmParser.toJSON();
@@ -57,12 +71,10 @@ const ImportResourcePage: React.FC = () => {
 
   const copyDirectory = async (source: string, destination: string) => {
     const items = await RNFS.readDir(source);
-
     await RNFS.mkdir(destination);
 
     for (const item of items) {
       const itemDestination = `${destination}/${item.name}`;
-
       if (item.isDirectory()) {
         await copyDirectory(item.path, itemDestination);
       } else if (
@@ -70,7 +82,8 @@ const ImportResourcePage: React.FC = () => {
         item.name.toLowerCase().endsWith('.sfm')
       ) {
         console.log(`Converting file: ${item.path}`);
-        setFileTransferMessage(`transferring file: ${item.path}`)
+        let chars = item.path.split('/');
+        setFileTransferMessage(`Importing file: ${chars[chars.length - 1]}`);
         await convertUsfmToJson(item.path, itemDestination);
       } else {
         await RNFS.copyFile(item.path, itemDestination);
@@ -87,34 +100,26 @@ const ImportResourcePage: React.FC = () => {
         const metadataContent = await RNFS.readFile(metadataFilePath);
         const metadata = JSON.parse(metadataContent);
 
-        if (
-          metadata &&
-          metadata.identification &&
-          metadata.identification.name
-        ) {
+        if (metadata && metadata.identification && metadata.identification.name) {
           const projectName = metadata.identification.name.en;
-
           const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
           const referenceFolderPath = `${baseFolderPath}/references`;
           const jsonFilePath = `${baseFolderPath}/appInfo.json`;
 
           const fileExists = await RNFS.exists(jsonFilePath);
-          let appInfo: any = {};
+          let appInfo: AppInfo = {};
 
-          // If the appInfo file exists, read it; otherwise, initialize appInfo
           if (fileExists) {
             const appInfoContent = await RNFS.readFile(jsonFilePath);
-            appInfo = JSON.parse(appInfoContent);
+            appInfo = JSON.parse(appInfoContent)  as AppInfo;
           }
 
-          // Ensure the `references` array exists
           if (!appInfo.references) {
-            appInfo.references = []; // Initialize the references array if it doesn't exist
+            appInfo.references = [];
           }
 
-          // Check if a project with the same name already exists
           const projectExists = appInfo.references.some(
-            (reference: any) => reference.projectName === projectName,
+            (reference) => reference.referenceName === projectName,
           );
 
           if (projectExists) {
@@ -123,19 +128,39 @@ const ImportResourcePage: React.FC = () => {
             return;
           }
 
-          // Check if text-1/ingredients folder exists with .usfm or .sfm files
+          let referenceType: string[] = [];
+
+          if (metadata.ingredients) {
+            const hasAudioFiles = Object.values(metadata.ingredients).some(
+              (ingredient) => {
+                if (isIngredient(ingredient)) {
+                  const mimeType = ingredient.mimeType || ingredient.mime_type;
+                  return (
+                    mimeType &&
+                    (mimeType.startsWith('audio/') ||
+                      mimeType.includes('wav') ||
+                      mimeType.includes('mp3'))
+                  );
+                }
+                return false;
+              },
+            );
+          
+            if (hasAudioFiles) {
+              referenceType.push('Audio');
+            }
+          }
+
           const text1FolderPath = `${selectedFolder}/text-1`;
           const ingredientsFolderPath = `${text1FolderPath}/ingredients`;
 
           const text1Exists = await RNFS.exists(text1FolderPath);
-          let referenceType = [];
-
           if (text1Exists) {
             const ingredientsExists = await RNFS.exists(ingredientsFolderPath);
             if (ingredientsExists) {
               const ingredientFiles = await RNFS.readDir(ingredientsFolderPath);
               const hasUsfmOrSfm = ingredientFiles.some(
-                file =>
+                (file) =>
                   file.name.toLowerCase().endsWith('.usfm') ||
                   file.name.toLowerCase().endsWith('.sfm'),
               );
@@ -146,7 +171,6 @@ const ImportResourcePage: React.FC = () => {
             }
           }
 
-          // Ensure the references folder exists
           const referenceResourceFolderExists = await RNFS.exists(
             referenceFolderPath,
           );
@@ -154,25 +178,20 @@ const ImportResourcePage: React.FC = () => {
             await RNFS.mkdir(referenceFolderPath);
           }
 
-          // Copy the selected folder and its contents to the destination
           const destinationPath = `${referenceFolderPath}/${projectName}`;
           await copyDirectory(selectedFolder, destinationPath);
 
-          // Create the new project object
           const newProject = {
             referenceName: projectName,
             referencePath: destinationPath,
             referenceType: referenceType,
           };
 
-          // Add the new project to the references array
           appInfo.references.push(newProject);
-
-          // Save the updated appInfo.json file
           await RNFS.writeFile(jsonFilePath, JSON.stringify(appInfo, null, 2));
-          setFileTransferMessage("");
+          setFileTransferMessage('');
           handleCancel();
-          Alert.alert('Success', 'Project imported successfully.');
+          Alert.alert('Success', 'Reference imported successfully.');
         } else {
           Alert.alert('Error', 'Invalid metadata file.');
         }
@@ -182,37 +201,15 @@ const ImportResourcePage: React.FC = () => {
       } finally {
         setIsImporting(false);
         const endTime = Date.now();
-
-        const elapsedTime = endTime - startTime;
-        const seconds = Math.floor(elapsedTime / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const secondsRemaining = seconds % 60;
-        const minutesRemaining = minutes % 60;
-
-        const hoursString = hours > 0 ? `${hours}h ` : '';
-        const minutesString =
-          minutesRemaining > 0 ? `${minutesRemaining}m ` : '';
-        const secondsString =
-          secondsRemaining > 0 ? `${secondsRemaining}s` : '';
-
-        console.log('elapsed time', elapsedTime);
-        console.log(
-          `Import time: ${hoursString} : ${minutesString} : ${secondsString}`,
-        );
+        console.log('Import time:', endTime - startTime, 'ms');
       }
     } else {
       Alert.alert('Error', 'No folder selected.');
     }
   };
 
-  const handleCancel = () => {
-    setSelectedFolder('');
-    // onDismiss();
-  };
-
   return (
-    <View style={styles.container}>
+    <View style={styles.container} pointerEvents={isImporting ? 'none' : 'auto'}>
       <Text style={styles.heading}>IMPORT RESOURCE</Text>
 
       <View style={styles.infoContainer}>
@@ -225,12 +222,12 @@ const ImportResourcePage: React.FC = () => {
           style={styles.textInput}
           value={selectedFolder}
           disabled
-          // multiline={true}
           textColor="#000"
         />
         <TouchableOpacity
           style={styles.selectFolderButton}
-          onPress={() => setShowFolderPicker(true)}>
+          onPress={() => setShowFolderPicker(true)}
+          disabled={isImporting}>
           <SvgXml xml={folderIcon} width={24} height={24} />
           <Text style={styles.selectFolderText}>Select Folder</Text>
         </TouchableOpacity>
@@ -238,13 +235,41 @@ const ImportResourcePage: React.FC = () => {
 
       <View style={styles.uploadContainer}>
         <TouchableOpacity
-          style={styles.uploadButton}
-          onPress={handleImportFolder}>
+          style={[styles.uploadButton, isImporting && styles.disabledButton]}
+          onPress={() => setShowImportDialog(true)}
+          disabled={!selectedFolder || isImporting}>
           <Text style={styles.uploadButtonText}>Upload</Text>
         </TouchableOpacity>
       </View>
 
       <Portal>
+        <Dialog visible={showImportDialog} onDismiss={handleCancel}>
+          <Dialog.Title>Import Reference</Dialog.Title>
+          <Dialog.Content>
+            {isImporting ? (
+              <View style={styles.dialogContent}>
+                <ActivityIndicator size="large" />
+                <Text style={styles.importingText}>
+                  Please wait. Importing Reference in progress...
+                </Text>
+                <Text style={styles.fileTransferText}>{fileTransferMessage}</Text>
+              </View>
+            ) : (
+              <View>
+                <Text style={styles.selectedFolderText}>
+                  Selected Folder: {selectedFolder}
+                </Text>
+                <Button onPress={handleImportFolder}>Import this folder</Button>
+              </View>
+            )}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={handleCancel} disabled={isImporting}>
+              Cancel
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+
         <Modal
           transparent={true}
           visible={showFolderPicker}
@@ -293,7 +318,6 @@ const styles = StyleSheet.create({
     width: '60%',
     height: 30,
     marginRight: 10,
-    // color: '#222f3e',
   },
   selectFolderButton: {
     flexDirection: 'row',
@@ -318,10 +342,30 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     width: 100,
   },
+  disabledButton: {
+    backgroundColor: '#ccc',
+  },
   uploadButtonText: {
     color: 'white',
     fontSize: 14,
     textAlign: 'center',
+  },
+  dialogContent: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    elevation: 5,
+    padding: 10,
+  },
+  importingText: {
+    color: '#000',
+    marginTop: 10,
+  },
+  fileTransferText: {
+    color: '#ff7f50',
+    marginTop: 5,
+  },
+  selectedFolderText: {
+    marginBottom: 10,
   },
 });
 

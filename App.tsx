@@ -23,7 +23,7 @@ export type RootStackParamList = {
   'Sign up': undefined;
   CreateProject: undefined;
   ReferencePage: undefined;
-  ProjectEditor: {projectId: string; projectName: string ,projectPath:string,referenceRes:string};
+  ProjectEditor: {projectId: string; projectName: string ,projectPath:string,referenceResource:string};
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -41,11 +41,11 @@ export default function App() {
       permission = isManagePermitted;
     });
     // request rights to manage
-    if (permission===false) {
+    // if (permission===false) {
       requestManagePermission().then(isManagePermitted => {
         console.log("Permission for file access granted",isManagePermitted);
       });
-    }
+    // }
     const checkAndCreateFolderAndFile = async () => {
       const folderPath = `${RNFS.ExternalStorageDirectoryPath}/Download/OBTRecorderApp`;
       const filePath = `${folderPath}/appInfo.json`;
