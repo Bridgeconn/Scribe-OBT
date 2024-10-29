@@ -60,11 +60,11 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
         const appInfo = JSON.parse(fileContent);
 
         if (appInfo.projects && Array.isArray(appInfo.projects)) {
-          const loadedProjects = appInfo.projects.map((project, index) => ({
+          const loadedProjects = appInfo.projects.map((project: { projectName: any; projectPath: any; referenceResource: any; }, index: number) => ({
             id: `${index + 1}`,
             name: project.projectName,
             path: project.projectPath,
-            reference:project.ReferenceResource,
+            reference:project.referenceResource,
           }));
           setProjects(loadedProjects);
         } else {
@@ -91,11 +91,11 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
           const appInfo = JSON.parse(fileContent);
 
           if (appInfo.projects && Array.isArray(appInfo.projects)) {
-            const loadedProjects = appInfo.projects.map((project, index) => ({
+            const loadedProjects = appInfo.projects.map((project: { projectName: any; projectPath: any; referenceResource: any; }, index: number) => ({
               id: `${index + 1}`,
               name: project.projectName,
               path: project.projectPath,
-              reference: project.ReferenceResource
+              reference: project.referenceResource
             }));
             setProjects(loadedProjects);
           } else {
@@ -162,7 +162,7 @@ const HomeScreen: React.FC<Props> = ({navigation}) => {
   };
 
   const navigateToProjectEditor = (id: string, name: string , path:string, reference:string) => {
-    navigation.navigate('ProjectEditor', {projectId: id, projectName: name, projectPath:path, referenceRes:reference});
+    navigation.navigate('ProjectEditor', {projectId: id, projectName: name, projectPath:path, referenceResource:reference});
   };
 
   const handleImport = async (folderPath: string) => {
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ddd',
   },
   drawerStyle: {
-    // backgroundColor: '#000',
+     backgroundColor: '#2f3542',
     position: 'absolute',
     right: 0,
     width: '45%',

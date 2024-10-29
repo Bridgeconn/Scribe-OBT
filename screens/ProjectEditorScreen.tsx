@@ -58,7 +58,7 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
   const jsonFilePath = `${baseFolderPath}/appInfo.json`;
   const [referenceType, setReferenceType] = useState<ReferenceType[]>([]);
   const [selectedRef, setSelectedRef] = useState<ReferenceType | null>(null);
-  const { projectId, projectName, projectPath, referenceRes } = route.params;
+  const { projectId, projectName, projectPath, referenceResource } = route.params;
   const [selectedBook, setSelectedBook] = useState<string>('');
   const [selectedChapter, setSelectedChapter] = useState<number>(1);
   const [selectedVerse, setSelectedVerse] = useState<number>(1);
@@ -89,17 +89,6 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
     setFontSize(prevSize => (prevSize > 14 ? prevSize - 1 : prevSize));
   };
 
-
-  // useEffect(() => {
-  //   navigation.setOptions({
-  //     headerRight: () => (
-  //       // <View style={{flexDirection: 'row'}}>
-  //       //   <IconButton icon="format-font-size-increase" onPress={increaseFontSize}  iconColor={fontSize >= 20 ? '#d3d3d3' : '#ff9f1a'} />
-  //       //   <IconButton icon="format-font-size-decrease" onPress={decreaseFontSize} iconColor={fontSize <= 14 ? '#d3d3d3' : '#ff9f1a'}  />
-  //       // </View>
-  //     ),
-  //   });
-  // }, [navigation,fontSize]);
   // Load reference metadata
   useEffect(() => {
     const loadReferenceMetadata = async () => {
@@ -166,25 +155,7 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [refreshMetadata, loadProjectMetadata]);
 
-  // const generateAudioUrl = () => {
-  //   if (selectedRef && selectedBook && selectedChapter && selectedVerse && metadata) {
-  //     const formattedChapter = selectedChapter.toString();
-  //     const formattedVerse = selectedVerse.toString();
-  //     const audioFileName = `${formattedChapter}_${formattedVerse}.wav`;
-  //     const ingredientPath = `audio/ingredients/${selectedBook}/${formattedChapter}/${audioFileName}`;
-
-  //     // Check if the audio file exists in the metadata
-  //     if (metadata.ingredients && metadata.ingredients[ingredientPath]) {
-  //       const url = `${selectedRef.path}/${ingredientPath}`;
-  //       setAudioUrl(url);
-  //     } else {
-  //       console.log(`Audio file not found in metadata: ${ingredientPath}`);
-  //       setAudioUrl(null);
-  //     }
-  //   } else {
-  //     setAudioUrl(null);
-  //   }
-  // };
+ 
   const generateAudioUrls = useCallback(() => {
     if (selectedBook && selectedChapter && selectedVerse) {
       const formattedChapter = selectedChapter.toString();
@@ -271,7 +242,9 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
             path: ref.referencePath,
           }));
           setReferenceType(formattedReferences);
-          const defaultRef = formattedReferences.find(ref => ref.title === referenceRes);
+          console.log(formattedReferences,"formattedReferences",referenceResource)
+          const defaultRef = formattedReferences.find(ref => ref.title === referenceResource);
+          console.log(referenceResource,"defaultRef")
           setSelectedRef(defaultRef);
         } else {
           setReferenceType([{ title: 'No option available', path: null }]);
@@ -284,7 +257,7 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
       console.log('Error reading JSON file:', error);
       setReferenceType([{ title: 'No option available', path: null }]);
     }
-  }, [jsonFilePath, referenceRes]);
+  }, [jsonFilePath, referenceResource]);
 
 
   const loadVerseText = useCallback(
@@ -449,7 +422,7 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
         if (project.projectName === projectName) {
           return {
             ...project,
-            ReferenceResource: selectedReference.title
+            referenceResource: selectedReference.title
           };
         }
         return project;
@@ -471,11 +444,7 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      {/* <Appbar.Header style={styles.appbarStyle} dark> */}
-      {/* <Appbar.Content title={`${projectName}`} /> */}
-      {/* </Appbar.Header> */}
-
-
+    
       <View>
         {currentScope &&
           <BookChapterVerseSelector onSelectionChange={handleSelectionChange} currentScope={currentScope} />
@@ -486,8 +455,6 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
         style={{
           alignItems: 'center',
           height: isPortrait ? '90%' : '80%',
-          // backgroundColor: '#ddd'
-          // borderWidth:1
         }}>
         <View
           style={{
@@ -517,11 +484,6 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
               style={
                 // styles.cardTitleContainer,[]
                 {
-
-                  // border:1,
-                  // padding: 3,
-                  // backgroundColor:'#ecf0f1',
-                  // borderBottomColor:'#95a5a6'
                   flexDirection:'row',
                   alignItems:'center',
                   height: 50,
@@ -544,7 +506,7 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
                       updateAppInfoJson(selectedItem);
                     }
                   }}
-                  buttonTextAfterSelection={(selectedItem) => {
+                  buttonTextAfterSelection={(selectedItem: { title: any; }) => {
                     return selectedItem ? selectedItem.title : 'Select Reference';
                   }}
                   rowTextForSelection={(item) => {
