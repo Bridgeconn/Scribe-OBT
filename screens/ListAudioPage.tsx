@@ -34,32 +34,14 @@ interface AppInfo {
   }[];
 }
 // Sample data for the table
-const data: TableData[] = [
-  // {
-  //   name: 'Audio 1',
-  //   type: 'Hindi IRV',
-  //   languageName: 'English',
-  //   col4: 'Value 4',
-  //   // col5: 'Value 5',
-  //   // col6: 'Value 6',
-  //   col7: 'Value 7',
-  // },
-  // {
-  //   name: 'Audio2',
-  //   type: 'Telegu IRV',
-  //   languageName: 'Spanish',
-  //   col4: 'Value 4',
-  //   // col5: 'Value 5',
-  //   // col6: 'Value 6',
-  //   col7: 'Value 7',
-  // },
-  // Add more rows as needed
-];
+const data: TableData[] = [];
 
 const ListAudioPage: React.FC = () => {
   const [data, setData] = useState<TableData[]>([]);
-  const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
+  // const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
+  const baseFolderPath = RNFS.DocumentDirectoryPath;
   const appInfoPath = `${baseFolderPath}/appInfo.json`;
+  const [isLoading, setIsLoading] = React.useState(false);
         
   const deleteIcon = `
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -67,7 +49,7 @@ const ListAudioPage: React.FC = () => {
   </svg>
 `;
 
-
+  // Function to handle the deletion of a reference
 const handleDelete = async (itemName: string) => {
   try {
     // Read current appInfo.json
@@ -75,11 +57,11 @@ const handleDelete = async (itemName: string) => {
     const appInfo: AppInfo = JSON.parse(appInfoContent);
 
     // Check if any project is using this reference
-    const projectsUsingReference = appInfo.projects.filter(
-      project => project.referenceResource === itemName
+    const projectsUsingReference = appInfo?.projects?.filter(
+      project => project?.referenceResource === itemName
     );
 
-    if (projectsUsingReference.length > 0) {
+    if (projectsUsingReference?.length > 0) {
       Alert.alert(
         'Warning',
         `This reference is being used by ${projectsUsingReference.length} project(s). Are you sure you want to delete it?`,
@@ -103,14 +85,16 @@ const handleDelete = async (itemName: string) => {
   }
 };
 
+  // Function to perform the actual deletion of a reference
 const performDelete = async (itemName: string, appInfo: AppInfo) => {
   try {
+    setIsLoading(true)
     // Delete the reference folder
     const referencePath = `${baseFolderPath}/references/${itemName}`;
     await RNFS.unlink(referencePath);
 
     // Update projects that use this reference
-    appInfo.projects = appInfo.projects.map(project => {
+    appInfo.projects = appInfo?.projects?.map(project => {
       if (project.referenceResource === itemName) {
         return { ...project, referenceResource: '' };
       }
@@ -127,7 +111,7 @@ const performDelete = async (itemName: string, appInfo: AppInfo) => {
 
     // Update the UI
     setData(prevData => prevData.filter(item => item.name !== itemName));
-
+    setIsLoading(false)
     Alert.alert('Success', 'Reference deleted successfully');
   } catch (error) {
     console.error('Error performing delete:', error);
@@ -141,7 +125,6 @@ const performDelete = async (itemName: string, appInfo: AppInfo) => {
     // Function to load references from appInfo.json
     const loadReferences = async () => {
       try {
-        // const appInfoPath = `${RNFS.DownloadDirectoryPath}/appInfo.json`;
         const appInfo = await RNFS.readFile(appInfoPath, 'utf8');
         const parsedInfo = JSON.parse(appInfo);
 
@@ -150,6 +133,7 @@ const performDelete = async (itemName: string, appInfo: AppInfo) => {
 
         for (const reference of references) {
           const metadataPath = `${reference.referencePath}/metadata.json`;
+          const manifestPath = `${reference.referencePath}/manifest.yaml`;
           if (await RNFS.exists(metadataPath)) {
             const metadata = JSON.parse(
               await RNFS.readFile(metadataPath, 'utf8'),
@@ -159,15 +143,17 @@ const performDelete = async (itemName: string, appInfo: AppInfo) => {
             {
               const primaryKey = Object.keys(identification.primary)[0]; // Gets "scribe" (or the unknown key)
               const uniqueId = Object.keys(identification.primary[primaryKey])[0]; // Gets the UUID
+              const revision=identification.primary[primaryKey][uniqueId]['revision']
 
             tableData.push({
               name: reference.referenceName,
-              type: (reference.referenceType.includes("Bible") && reference.referenceType.includes("Audio")) ?'Both':'Audio' ,
+              type: (reference.referenceType.includes("Bible") && reference.referenceType.includes("Audio")) ?' Audio , Bible ':'Audio' ,
               // type: type || 'Unknown',
               languageName: languages[0].name.en || 'Unknown',
-              version: uniqueId || 'Unknown',
+              version: revision || 'Unknown',
             });}
-          } else {
+          }else if (await RNFS.exists(manifestPath)) {}
+           else {
             Alert.alert(
               'Metadata not found',
               `Metadata file not found for ${reference.referenceName}`,
@@ -175,7 +161,7 @@ const performDelete = async (itemName: string, appInfo: AppInfo) => {
           }
         }
 
-        setData(tableData);
+        setData(tableData); // Update the table with the reference data
       } catch (error) {
         console.error('Error loading references:', error);
       }
@@ -248,6 +234,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
+    alignItems:'center'
+
   },
   cell: {
     flex: 1,

@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   Text,
   View,
@@ -10,8 +10,13 @@ import {
 import {Portal, Dialog, Button} from 'react-native-paper';
 import RNFS from 'react-native-fs';
 import FolderPicker from './FolderPicker';
-const grammar = require('usfm-grammar');
+import Loader2 from './Loader2';
 
+// Props type for the ImportModal component
+// visible: Controls the visibility of the modal
+// onDismiss: Callback to handle modal dismissal
+// onImport: Callback to handle folder import selection
+// onUpdate: Callback to update after import operation
 type ImportModalProps = {
   visible: boolean;
   onDismiss: () => void;
@@ -19,6 +24,7 @@ type ImportModalProps = {
   onUpdate: () => void;
 };
 
+// Main functional component for ImportModal
 const ImportModal: React.FC<ImportModalProps> = ({
   visible,
   onDismiss,
@@ -29,99 +35,72 @@ const ImportModal: React.FC<ImportModalProps> = ({
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const [convertingFileMessage,setConvertingFileMessage]=useState("");
+  const [progress, setProgress] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [copiedFiles, setCopiedFiles] = useState(0);
 
-  // const [startTime, setStartTime] = useState<number | null>(null);
-  // const [endTime, setEndTime] = useState<number | null>(null);
 
+  // Handles the selection of a folder
   const handleSelectFolder = (path: string) => {
     setSelectedFolder(path);
     setShowFolderPicker(false);
     onImport(path);
   };
 
-  const convertUsfmToJson = async (
-    sourcePath: string,
-    destinationPath: string,
-  ) => {
-    const usfmContent = await RNFS.readFile(sourcePath, 'utf8');
-    const usfmParser = new grammar.USFMParser(usfmContent);
-    const usfmJson = usfmParser.toJSON();
-    const jsonContent = JSON.stringify(usfmJson, null, 2);
-    const jsonFilePath = destinationPath.replace(/\.(usfm|SFM)$/i, '.json');
-    await RNFS.writeFile(jsonFilePath, jsonContent, 'utf8');
-    setConvertingFileMessage("");
-    
-  };
-
+   // Recursively copies files and folders from the source to the destination
   const copyDirectory = async (source: string, destination: string) => {
     const items = await RNFS.readDir(source);
-
+try{
     await RNFS.mkdir(destination);
+    setCopiedFiles((prevCopiedFiles) => {
+      const newCopiedFiles = prevCopiedFiles + 1;
+      setProgress(newCopiedFiles / totalFiles);
+      return newCopiedFiles;
+    });
+  } catch (error) {
+    console.error('Error copying file:', error);
+  }
+
 
     for (const item of items) {
       const itemDestination = `${destination}/${item.name}`;
 
       if (item.isDirectory()) {
         await copyDirectory(item.path, itemDestination);
-      } else if (
-        item.name.toLowerCase().endsWith('.usfm') ||
-        item.name.toLowerCase().endsWith('.sfm')
-      ) {
-        console.log(`Converting file: ${item.path}`);
-        let chars = item.path.split('/');
-// console.log(chars[8]);
-        setConvertingFileMessage(`Importing file : ${chars[8]}`);
-        await convertUsfmToJson(item.path, itemDestination);
       } else {
-        await RNFS.copyFile(item.path, itemDestination);
-
+        let chars = item.path.split('/');
+        setConvertingFileMessage(`Importing file : ${chars.slice(5).join('/')}`);
+        try {
+          await RNFS.copyFile(item.path, itemDestination);
+          setCopiedFiles((prevCopiedFiles) => {
+            const newCopiedFiles = prevCopiedFiles + 1;
+            setProgress(newCopiedFiles / totalFiles);
+            return newCopiedFiles;
+          });
+        } catch (error) {
+          console.error('Error copying file:', error);
+        }
       }
     }
   };
 
+    // Recursively counts the number of files in a directory
+  const countFiles = async (path: string) => {
+    const dirItems = await RNFS.readDir(path);
+    let count = dirItems.length;
+    for (const item of dirItems) {
+      if (item.isDirectory()) {
+        count += await countFiles(item.path);
+      }
+    }
+    return count;
+  };
+
+ 
+  // Initiates the folder import process
   const handleImportFolder = async () => {
     if (selectedFolder) {
-      // try {
-      //   const readPermission = await PermissionsAndroid.request(
-      //     PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-      //     {
-      //       title: 'Permission Read',
-      //       message: 'Permission to read',
-      //       buttonNeutral: 'Ask Me Later',
-      //       buttonNegative: 'Cancel',
-      //       buttonPositive: 'OK',
-      //     },
-      //   );
-      //   const writePermission = await PermissionsAndroid.request(
-      //     PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-      //     {
-      //       title: 'Permission Write',
-      //       message: 'Permission to Write',
-      //       buttonNeutral: 'Ask Me Later',
-      //       buttonNegative: 'Cancel',
-      //       buttonPositive: 'OK',
-      //     },
-      //   );
-
-      //   if (
-      //     readPermission === PermissionsAndroid.RESULTS.GRANTED ||
-      //     writePermission === PermissionsAndroid.RESULTS.GRANTED
-      //   ) {
-      //     Alert.alert(
-      //       'Permission Granted',
-      //       'Storage permission is granted to access the files.',
-      //     );
-      //   } else {
-      //     Alert.alert(
-      //       'Permission Denied',
-      //       'Storage permission is required to access the files.',
-      //     );
-      //     return; // Exit if permissions are not granted
-      //   }
-      // } catch (error) {
-      //   console.error('Permission error:', error);
-      //   return;
-      // }
+    
       setIsImporting(true);
       const startTime = Date.now();
       try {
@@ -136,7 +115,9 @@ const ImportModal: React.FC<ImportModalProps> = ({
         ) {
           const projectName = metadata.identification.name.en;
 
-          const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
+          // const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
+          const baseFolderPath = RNFS.DocumentDirectoryPath;
+
           const projectsFolderPath = `${baseFolderPath}/projects`;
           const jsonFilePath = `${baseFolderPath}/appInfo.json`;
 
@@ -164,7 +145,17 @@ const ImportModal: React.FC<ImportModalProps> = ({
 
           const projectsFolderExists = await RNFS.exists(projectsFolderPath);
           if (!projectsFolderExists) {
+            try{
             await RNFS.mkdir(projectsFolderPath);
+            setCopiedFiles((prevCopiedFiles) => {
+              const newCopiedFiles = prevCopiedFiles + 1;
+
+              setProgress(newCopiedFiles / totalFiles);
+              return newCopiedFiles;
+            });
+          } catch (error) {
+            console.error('Error copying file:', error);
+          }
           }
 
           const destinationPath = `${projectsFolderPath}/${projectName}`;
@@ -215,6 +206,22 @@ const ImportModal: React.FC<ImportModalProps> = ({
     }
   };
 
+
+    // Effect to calculate total file count whenever a folder is selected
+  useEffect(() => {
+    if (selectedFolder) {
+      const calculateTotalFiles = async () => {
+        const totalFileCount = await countFiles(selectedFolder);
+        console.log(totalFileCount,'total file count')
+        setTotalFiles(totalFileCount+1);
+        
+      };
+      calculateTotalFiles();
+      setCopiedFiles(0);
+    }
+  }, [selectedFolder]);
+
+    // Handles modal dismissal
   const handleCancel = () => {
     setSelectedFolder(null);
     onDismiss();
@@ -226,23 +233,20 @@ const ImportModal: React.FC<ImportModalProps> = ({
         <Dialog.Title>Import Project</Dialog.Title>
         <Dialog.Content>
           {isImporting ? (
-            <View
-              style={{
-                alignItems: 'center',
-                backgroundColor: '#fff',
-                elevation: 5,
-                padding: 10,
-              }}>
-              <ActivityIndicator size="large" />
-              <Text style={{color: '#000'}}>
-                Please wait. Importing Project in progress...
-              </Text>
-              <Text style={{color: '#ff7f50'}}>{convertingFileMessage}</Text>
-            </View>
+            <Loader2 visible={true} progress={progress}/>
           ) : selectedFolder ? (
             <View>
-              <Text>Selected Folder: {selectedFolder}</Text>
-              <Button onPress={handleImportFolder}>Import this folder</Button>
+              <View style={{flexDirection:'row',flexWrap:'wrap'}}>
+              <Text >Selected Folder : </Text>
+              <Text >{selectedFolder}</Text>
+              </View>
+              <View style={{flexDirection:'row',flexWrap:'wrap'}}>
+
+              <Text >Total Files : </Text>
+              <Text > {totalFiles}</Text>
+              </View>
+              <Button   onPress={handleImportFolder}>Import this folder</Button>
+              
             </View>
           ) : (
             <Button onPress={() => setShowFolderPicker(true)}>

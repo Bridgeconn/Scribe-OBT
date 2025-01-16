@@ -1,3 +1,4 @@
+//ProjectEditorScreen.tsx
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View,
@@ -16,13 +17,16 @@ import { Appbar, Text, TextInput, IconButton } from 'react-native-paper';
 import BookChapterVerseSelector from './BookChapterVerseSelector';
 import RNFS from 'react-native-fs';
 import AudioRecorder from './AudioRecorder';
-import CustomBottomSheet from './MyBottomSheet';
 import AudioPlayer, { AudioPlayerRef } from './AudioPlayer';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../App'; // Adjust the import based on your project structure
+import Loader from './Loader';
+
+const grammar = require('usfm-grammar');
 
 
+// Define types for references, metadata, projects, and app info structure
 type ReferenceType = {
   title: string;
   path: string | null;
@@ -34,6 +38,7 @@ type MetadataType = {
 };
 interface ProjectType {
   projectName: string;
+  // projectPath:string;
   // add other properties if needed
 }
 
@@ -42,7 +47,7 @@ interface AppInfo {
   // add other properties if needed
 }
 
-
+// Navigation and route props for the ProjectEditorScreen
 type ProjectEditorScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ProjectEditor'>;
 type ProjectEditorScreenRouteProp = RouteProp<RootStackParamList, 'ProjectEditor'>;
 
@@ -54,52 +59,82 @@ type Props = {
 
 const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isPortrait, setIsPortrait] = useState(true);
-  const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
+  // const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
+  const baseFolderPath = RNFS.DocumentDirectoryPath;
+
   const jsonFilePath = `${baseFolderPath}/appInfo.json`;
   const [referenceType, setReferenceType] = useState<ReferenceType[]>([]);
   const [selectedRef, setSelectedRef] = useState<ReferenceType | null>(null);
   const { projectId, projectName, projectPath, referenceResource } = route.params;
   const [selectedBook, setSelectedBook] = useState<string>('');
-  const [selectedChapter, setSelectedChapter] = useState<number>(1);
-  const [selectedVerse, setSelectedVerse] = useState<number>(1);
+  const [selectedChapter, setSelectedChapter] = useState<number>();
+  const [selectedVerse, setSelectedVerse] = useState<number>();
   const [verseText, setVerseText] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const bottomSheetRef = useRef(null);
-  const [bottomSheetIndex, setBottomSheetIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState('A');
+  const [targetVerseText, setTargetVerseText] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingRef, setIsLoadingRef] = useState<boolean>(false);
+  const [isLoadingTarget, setIsLoadingTarget] = useState(false);
+  const [hasLoadedInitially, setHasLoadedInitially] = useState(false);
   const audioPlayerRef = useRef<AudioPlayerRef>(null);
   const [currentScope, setCurrentScope] = useState<{ [key: string]: any }>({});
+  const [audioScopes, setAudioScopes] = useState<{ [key: string]: string[] }>({});
 
-  // const [audioUrl, setAudioUrl] = useState(null);
+  // const [audioUrl, setAudioUrl] = useState(null);  
   // const [metadata, setMetadata] = useState(null);
   const [referenceAudioUrl, setReferenceAudioUrl] = useState<string | null>(null);
   const [projectAudioUrl, setProjectAudioUrl] = useState<string | null>(null);
   const [referenceMetadata, setReferenceMetadata] = useState<MetadataType | null>(null);
   const [projectMetadata, setProjectMetadata] = useState<MetadataType | null>(null);
-  const [refreshMetadata, setRefreshMetadata] = useState(true)
+  const [refreshMetadata, setRefreshMetadata] = useState(true);
+
+  const [cachedData, setCachedData] = useState<any>({});
+  const [cachedTargetData, setCachedTargetData] = useState<any>({});
+  // console.log(projectPath,"Project pathname")
+
   //font size 
 
-  const [fontSize, setFontSize] = useState(16); // State for font size
+  const [resFontSize, setResFontSize] = useState(16); // State for font size
 
+  // Increase the source text size
   const increaseFontSize = () => {
-    setFontSize(prevSize => (prevSize < 20 ? prevSize + 1 : prevSize));
+    setResFontSize(prevSize => (prevSize < 20 ? prevSize + 1 : prevSize));
   };
 
+  // Decrease the source text size
   const decreaseFontSize = () => {
-    setFontSize(prevSize => (prevSize > 14 ? prevSize - 1 : prevSize));
+    setResFontSize(prevSize => (prevSize > 14 ? prevSize - 1 : prevSize));
   };
 
-  // Load reference metadata
+
+  const [targetFontSize, setTargetFontSize] = useState(16); // State for font size
+
+  //Increase the target text size
+  const increaseTarFontSize = () => {
+    setTargetFontSize(prevSize => (prevSize < 20 ? prevSize + 1 : prevSize));
+  };
+
+  //Decrease the target text size
+  const decreaseTarFontSize = () => {
+    setTargetFontSize(prevSize => (prevSize > 14 ? prevSize - 1 : prevSize));
+  };
+
+
+  // Load metadata for the selected reference
   useEffect(() => {
     const loadReferenceMetadata = async () => {
       if (selectedRef) {
         const metadataPath = `${selectedRef.path}/metadata.json`;
-        try {
-          const content = await RNFS.readFile(metadataPath, 'utf8');
-          const parsedMetadata = JSON.parse(content);
-          setReferenceMetadata(parsedMetadata);
-        } catch (error) {
-          console.error('Error reading reference metadata:', error);
+        const fileExists = await RNFS.exists(metadataPath);
+        if (fileExists) {
+          try {
+            const content = await RNFS.readFile(metadataPath, 'utf8');
+            const parsedMetadata = JSON.parse(content);
+            setReferenceMetadata(parsedMetadata);
+          } catch (error) {
+            console.error('Error reading reference metadata:', error);
+            setReferenceMetadata(null);
+          }
+        } else {
           setReferenceMetadata(null);
         }
       }
@@ -109,38 +144,56 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
   }, [selectedRef]);
 
 
+  // Update metadata refresh state
   const updateMetadata = (booleanData: boolean) => {
     setRefreshMetadata(!booleanData);
   };
-  // useEffect(() => {
-  //   const loadProjectMetadata = async () => {
-  //     const metadataPath = `${projectPath}/metadata.json`;
-  //     try {
-  //       const content = await RNFS.readFile(metadataPath, 'utf8');
-  //       const parsedMetadata = JSON.parse(content);
-  //       setProjectMetadata(parsedMetadata);
-  //     } catch (error) {
-  //       console.error('Error reading project metadata:', error);
-  //       setProjectMetadata(null);
-  //     }
-  //   };
-  //   if (refreshMetadata) {
-  //     loadProjectMetadata();
-  //     updateMetadata(!refreshMetadata)
-  //   }
-  // }, [projectPath]);
 
+
+  // Function to extract audio scopes from metadata
+  const getAudioScopes = useCallback((metadata: any) => {
+    const scopes: { [key: string]: string[] } = {};
+
+    if (metadata?.ingredients) {
+      for (const [path, info] of Object.entries(metadata.ingredients)) {
+        if (info.mimeType === 'audio/wav') {
+          if (info.scope) {
+            for (const [book, verses] of Object.entries(info.scope)) {
+              if (!scopes[book]) {
+                scopes[book] = [];
+              }
+              // Ensure no duplicate verses are added
+              verses.forEach((verse: string) => {
+                if (!scopes[book].includes(verse)) {
+                  scopes[book].push(verse);
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return scopes;
+  }, []);
+
+
+  // Load metadata for the project
   const loadProjectMetadata = useCallback(async () => {
     const metadataPath = `${projectPath}/metadata.json`;
     try {
       const content = await RNFS.readFile(metadataPath, 'utf8');
       const parsedMetadata = JSON.parse(content);
       setProjectMetadata(parsedMetadata);
+      const scopes = getAudioScopes(parsedMetadata);
+      setAudioScopes(scopes);
     } catch (error) {
       console.error('Error reading project metadata:', error);
       setProjectMetadata(null);
     }
-  }, [projectPath]);
+  }, [projectPath, getAudioScopes]);
+
+
 
   // Add this function to handle metadata updates from AudioRecorder
   const handleMetadataUpdate = useCallback(() => {
@@ -155,20 +208,42 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [refreshMetadata, loadProjectMetadata]);
 
- 
+  // Generates audio URLs for the selected reference and project based on the current book, chapter, and verse.
   const generateAudioUrls = useCallback(() => {
+    setReferenceAudioUrl(null);
     if (selectedBook && selectedChapter && selectedVerse) {
       const formattedChapter = selectedChapter.toString();
       const formattedVerse = selectedVerse.toString();
+      audioPlayerRef.current?.stopPlaying();
 
       // Reference audio path generation (remains the same)
+      console.log(selectedRef, "selectedRef in generate url")
       if (selectedRef && referenceMetadata) {
-        const referenceAudioFileName = `${formattedChapter}_${formattedVerse}.wav`;
-        const referenceIngredientPath = `audio/ingredients/${selectedBook}/${formattedChapter}/${referenceAudioFileName}`;
 
-        if (referenceMetadata.ingredients?.[referenceIngredientPath]) {
-          setReferenceAudioUrl(`${selectedRef.path}/${referenceIngredientPath}`);
+        // Find matching audio file in ingredients
+        const matchingPath = Object.entries(referenceMetadata.ingredients).find(([path, info]: [string, any]) => {
+          // Check if this is an audio file
+          if (info.scope) {
+            // Check if the scope matches current selection
+            return Object.entries(info.scope).some(([book, verses]: [string, string[]]) => {
+              return book === selectedBook &&
+                verses.includes(`${selectedChapter}:${selectedVerse}`);
+            });
+          }
+          return false;
+        });
+
+        if (matchingPath) {
+          const [audioPath] = matchingPath;
+          console.log('audio file:', audioPath);
+
+          setReferenceAudioUrl(`${selectedRef.path}/${audioPath}`);
+          console.log('Found matching reference audio file:', audioPath);
+
+          // setReferenceAudioUrl(`${selectedRef.path}/${matchingPath}`);
         } else {
+          console.log('No matching refernce audio file found ');
+
           setReferenceAudioUrl(null);
         }
       }
@@ -178,7 +253,7 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
         // Find matching audio file in ingredients
         const matchingAudioFile = Object.entries(projectMetadata.ingredients).find(([path, info]: [string, any]) => {
           // Check if this is an audio file
-          if (info.mimeType === 'audio/wav' && info.scope) {
+          if (info.scope) {
             // Check if the scope matches current selection
             return Object.entries(info.scope).some(([book, verses]: [string, string[]]) => {
               return book === selectedBook &&
@@ -190,20 +265,16 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
 
         if (matchingAudioFile) {
           const [audioPath] = matchingAudioFile;
-          console.log('audio file:', audioPath);
+          // console.log('audio file:', audioPath, 'matching audio file ',matchingAudioFile);
 
           setProjectAudioUrl(`${projectPath}/${audioPath}`);
           console.log('Found matching audio file:', audioPath);
         } else {
-          // If no direct match found, try the default naming pattern
-          const defaultAudioPath = `audio/ingredients/${selectedBook}/${formattedChapter}/${formattedChapter}_${formattedVerse}.wav`;
-          if (projectMetadata.ingredients[defaultAudioPath]) {
-            setProjectAudioUrl(`${projectPath}/${defaultAudioPath}`);
-            console.log('Using default audio path:', defaultAudioPath);
-          } else {
-            setProjectAudioUrl(null);
-            console.log('No matching audio file found');
-          }
+
+          setProjectAudioUrl(null);
+
+          console.log('No matching audio file found');
+
         }
       } else {
         setProjectAudioUrl(null);
@@ -214,37 +285,27 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   }, [selectedRef, selectedBook, selectedChapter, selectedVerse, referenceMetadata, projectMetadata, projectPath]);
 
+  // Automatically regenerate audio URLs when dependencies change.
   useEffect(() => {
     generateAudioUrls();
   }, [generateAudioUrls]);
 
-
-  const handleOptionSelect = (option: string) => {
-    setSelectedOption(option);
-    // You can add additional logic here based on the selected option
-  };
-
-  // console.log(referenceRes,"referenceRes");
-  const [cachedData, setCachedData] = useState<any>({});
-  // console.log(projectPath,"Project pathname")
-
-
-
+  // Loads reference metadata from a JSON file and formats it for use in the application.
   const loadReferencesFromJson = useCallback(async () => {
     try {
       const fileExists = await RNFS.exists(jsonFilePath);
       if (fileExists) {
         const jsonData = await RNFS.readFile(jsonFilePath, 'utf8');
         const parsedData = JSON.parse(jsonData);
-        if (parsedData.references) {
+        if (parsedData.references.length > 0) {
           const formattedReferences = parsedData.references.map((ref: any) => ({
             title: ref.referenceName,
             path: ref.referencePath,
           }));
           setReferenceType(formattedReferences);
-          console.log(formattedReferences,"formattedReferences",referenceResource)
-          const defaultRef = formattedReferences.find(ref => ref.title === referenceResource);
-          console.log(referenceResource,"defaultRef")
+          console.log(formattedReferences, "formattedReferences", referenceResource)
+          const defaultRef = formattedReferences.find((ref: { title: string; }) => ref.title === referenceResource);
+          console.log(defaultRef, "defaultRef")
           setSelectedRef(defaultRef);
         } else {
           setReferenceType([{ title: 'No option available', path: null }]);
@@ -257,44 +318,295 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
       console.log('Error reading JSON file:', error);
       setReferenceType([{ title: 'No option available', path: null }]);
     }
-  }, [jsonFilePath, referenceResource]);
+    // }, [jsonFilePath, referenceResource]);
+  }, [projectName]);
+
+  // Converts a USFM or SFM file to JSON format, saves it, and deletes the original file.
+  const convertRefUsfmToJson = async (sourcePath: string, destinationPath: string) => {
+    console.log(sourcePath, 'src', destinationPath, 'dest')
+    const usfmContent = await RNFS.readFile(sourcePath, 'utf8');
+    // const usfmParser = new grammar.USFMParser(usfmContent, grammar.LEVEL.RELAXED);
+    const usfmParser = new grammar.USFMParser(usfmContent, grammar.FILTER.SCRIPTURE);
+
+    const usfmJson = usfmParser.toJSON();
+    console.log(usfmJson, 'usfmJson')
+    const jsonContent = JSON.stringify(usfmJson, null, 2);
+    const jsonFilePath = destinationPath.replace(/\.(usfm|SFM)$/i, '.json');
+    await RNFS.writeFile(jsonFilePath, jsonContent, 'utf8');
+    // setConvertingFileMessage("");
+
+    // Delete the original USFM file after JSON file is written
+    await RNFS.unlink(sourcePath);
+    console.log('USFM file deleted successfully.');
+
+  };
 
 
   const loadVerseText = useCallback(
-    async (book: string, chapter: number, verse: number) => {
-      if (!selectedRef) return;
-      const bookPath = `${selectedRef.path}/text-1/ingredients/${book}.json`;
-      // console.log(selectedRef,"selectedRef")
-      // Check if data is already cached
-      if (cachedData[bookPath]) {
-        const bookData = cachedData[bookPath];
-        const selectedChapterObj = bookData?.chapters.find(
-          (chapterObj: any) => chapterObj.chapterNumber === chapter.toString(),
-        );
 
-        if (selectedChapterObj) {
-          const content = selectedChapterObj.contents.find(
-            (verseObj: any) => verseObj.verseNumber === verse.toString(),
-          );
-          setVerseText(content ? content.verseText : 'Verse not found');
-        } else {
-          setVerseText('Chapter not found');
-        }
-        setLoading(false);
-        return;
+    async (book: string, chapter: number, verse: number) => {
+      // If no reference is selected, exit early
+      if (!selectedRef) return;
+      // Set loading state only on initial load
+      if (!hasLoadedInitially) {
+
+        setIsLoadingRef(true);
       }
 
       try {
-        const fileExists = await RNFS.exists(bookPath);
-        if (fileExists) {
-          setLoading(true);
-          const jsonData = await RNFS.readFile(bookPath, 'utf8');
+        console.log(selectedRef.path, 'selectedRef 1')
+        // Define paths for metadata, ingredients, and manifest
+
+        let metadataPath = `${selectedRef.path}/metadata.json`;
+        let usfmFilePath = `${selectedRef.path}`; selectedRef
+        let ingredientsPath = `${selectedRef.path}/ingredients`;
+        let manifestPath = `${selectedRef.path}/manifest.yaml`;
+
+        // Check if metadata.json and ingredients exist
+
+        let metadataExists = (await RNFS.exists(metadataPath) && await RNFS.exists(ingredientsPath));
+        let manifestExists = await RNFS.exists(manifestPath)
+        // If metadata is not found in the root, look in the text-1 subdirectory
+
+        if (!metadataExists) {
+          usfmFilePath = `${selectedRef.path}/text-1`;
+
+          metadataPath = `${selectedRef.path}/text-1/metadata.json`;
+          console.log(metadataPath, 'metadatapath')
+          metadataExists = await RNFS.exists(metadataPath);
+        }
+        // If neither metadata nor ingredients are found, fall back to the manifest.yml
+        if (!metadataExists && manifestExists) {
+          try {
+            const manifestContent = await RNFS.readFile(manifestPath, 'utf8');
+            const manifest = require('js-yaml').load(manifestContent);
+
+            // Find the project in the manifest for the specified book
+            const bookProject = manifest.projects?.find(
+              (project: any) => project.identifier.toLowerCase() === book.toLowerCase()
+            );
+
+            if (bookProject) {
+              // Resolve the USFM file path from the manifest
+              const usfmPath = `${selectedRef.path}/${bookProject.path.replace('./', '')}`;
+              const jsonPath = usfmPath.replace(/\.(usfm|SFM)$/i, '.json');
+
+              // Check if JSON data is already cached
+              if (cachedData[jsonPath]) {
+                const bookData = cachedData[jsonPath];
+                // Find the requested chapter and verse in the cached data
+                const selectedChapterObj = bookData?.chapters.find(
+                  (chapterObj: any) => chapterObj.chapterNumber === chapter.toString(),
+                );
+
+                if (selectedChapterObj) {
+                  const content = selectedChapterObj.contents.find(
+                    (verseObj: any) => verseObj.verseNumber === verse.toString(),
+                  );
+                  setVerseText(content ? content.verseText : 'Verse not found');
+                } else {
+                  setVerseText('Chapter not found');
+                }
+                setIsLoadingRef(false);
+                setHasLoadedInitially(true);
+                return;
+              }
+
+              // Check if JSON file already exists on disk
+              const jsonExists = await RNFS.exists(jsonPath);
+              if (jsonExists) {
+                try {
+                  const jsonData = await RNFS.readFile(jsonPath, 'utf8');
+                  const bookData = JSON.parse(jsonData);
+
+                  // Cache the JSON data for future use
+                  setCachedData((prevCache: any) => ({
+                    ...prevCache,
+                    [jsonPath]: bookData,
+                  }));
+
+                  const selectedChapterObj = bookData.chapters.find(
+                    (chapterObj: any) => chapterObj.chapterNumber === chapter.toString(),
+                  );
+
+                  if (selectedChapterObj) {
+                    const content = selectedChapterObj.contents.find(
+                      (verseObj: any) => verseObj.verseNumber === verse.toString(),
+                    );
+                    setVerseText(content ? content.verseText : 'Verse not found');
+                  } else {
+                    setVerseText('Chapter not found');
+                  }
+                  return;
+                } catch (jsonError) {
+                  console.error('Error reading existing JSON file:', jsonError);
+                  // Continue to USFM conversion if JSON reading fails
+                }
+              }
+
+              // If USFM file exists, convert it to JSON
+              const usfmExists = await RNFS.exists(usfmPath);
+              if (!usfmExists) {
+                console.log('USFM file not found:', usfmPath);
+                setVerseText('Content Not Available');
+                return;
+              }
+
+
+              // Proceed with USFM to JSON conversion
+              try {
+                setIsLoading(true)
+                await convertRefUsfmToJson(usfmPath, jsonPath);
+
+                // Read the converted JSON
+                const jsonData = await RNFS.readFile(jsonPath, 'utf8');
+                const bookData = JSON.parse(jsonData);
+
+                // Cache the converted data
+                setCachedData((prevCache: any) => ({
+                  ...prevCache,
+                  [jsonPath]: bookData,
+                }));
+
+                const selectedChapterObj = bookData.chapters.find(
+                  (chapterObj: any) =>
+                    chapterObj.chapterNumber === chapter.toString(),
+                );
+
+                if (selectedChapterObj) {
+                  const content = selectedChapterObj.contents.find(
+                    (verseObj: any) => verseObj.verseNumber === verse.toString(),
+                  );
+                  setVerseText(content ? content.verseText : 'Verse not found');
+                } else {
+                  setVerseText('Chapter not found');
+                }
+                setIsLoading(false)
+                return;
+              } catch (conversionError) {
+                console.error('Error converting USFM to JSON from manifest:', conversionError);
+                setVerseText('Error converting content format');
+                return;
+              }
+            }
+          } catch (manifestError) {
+            console.error('Error parsing manifest:', manifestError);
+          }
+        }
+
+
+        // If no valid metadata or manifest is found, exit
+        if (!metadataExists) {
+          console.log('No metadata.json found in either location');
+          setVerseText('Content Not Available');
+          return;
+        }
+
+        // Read metadata and find matching USFM ingredient
+        const metadataContent = await RNFS.readFile(metadataPath, 'utf8');
+        const metadata = JSON.parse(metadataContent);
+
+        if (!metadata.ingredients) {
+          console.log('No ingredients found in metadata');
+          setVerseText('Content Not Available');
+          return;
+        }
+
+        // Find matching ingredient entry
+        const matchingIngredient = Object.entries(metadata.ingredients).find(([path, info]: [string, any]) => {
+          return (
+            info.mimeType === "text/x-usfm" &&
+            info.scope &&
+            Object.keys(info.scope).includes(book)
+          );
+        });
+
+
+
+
+        if (!matchingIngredient) {
+          console.log('No matching USFM file found for book:', book);
+          setVerseText('Content Not Available');
+          return;
+        }
+
+        const [ingredientPath] = matchingIngredient;
+        const usfmPath = `${usfmFilePath}/${ingredientPath}`;
+        const jsonPath = usfmPath.replace(/\.(usfm|SFM)$/i, '.json');
+
+        // Check if converted JSON already exists in cache
+        if (cachedData[jsonPath]) {
+          const bookData = cachedData[jsonPath];
+          const selectedChapterObj = bookData?.chapters.find(
+            (chapterObj: any) => chapterObj.chapterNumber === chapter.toString(),
+          );
+
+          if (selectedChapterObj) {
+            const content = selectedChapterObj.contents.find(
+              (verseObj: any) => verseObj.verseNumber === verse.toString(),
+            );
+            setVerseText(content ? content.verseText : 'Verse not found');
+          } else {
+            setVerseText('Chapter not found');
+          }
+          setIsLoadingRef(false);
+          setHasLoadedInitially(true);
+          return;
+        }
+
+        // New: Check if JSON file already exists on disk
+        const jsonExists = await RNFS.exists(jsonPath);
+        if (jsonExists) {
+          try {
+            const jsonData = await RNFS.readFile(jsonPath, 'utf8');
+            const bookData = JSON.parse(jsonData);
+
+            // Cache the existing JSON data
+            setCachedData((prevCache: any) => ({
+              ...prevCache,
+              [jsonPath]: bookData,
+            }));
+
+            const selectedChapterObj = bookData.chapters.find(
+              (chapterObj: any) => chapterObj.chapterNumber === chapter.toString(),
+            );
+
+            if (selectedChapterObj) {
+              const content = selectedChapterObj.contents.find(
+                (verseObj: any) => verseObj.verseNumber === verse.toString(),
+              );
+              setVerseText(content ? content.verseText : 'Verse not found');
+            } else {
+              setVerseText('Chapter not found');
+            }
+            return;
+          } catch (jsonError) {
+            console.error('Error reading existing JSON file:', jsonError);
+            // Continue to USFM conversion if JSON reading fails
+          }
+        }
+
+        // Read or convert USFM to JSON if not cached
+        const usfmExists = await RNFS.exists(usfmPath);
+        if (!usfmExists) {
+          console.log('USFM file not found:', usfmPath);
+          setVerseText('Content Not Available');
+          return;
+        }
+
+        // Convert USFM to JSON
+        try {
+          setIsLoading(true)
+          await convertRefUsfmToJson(usfmPath, jsonPath);
+
+          // Read the converted JSON
+          const jsonData = await RNFS.readFile(jsonPath, 'utf8');
           const bookData = JSON.parse(jsonData);
 
-          // Cache data after reading
+          // Cache the converted data
           setCachedData((prevCache: any) => ({
             ...prevCache,
-            [bookPath]: bookData,
+            [jsonPath]: bookData,
           }));
 
           const selectedChapterObj = bookData.chapters.find(
@@ -310,20 +622,219 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
           } else {
             setVerseText('Chapter not found');
           }
-        } else {
-          // setVerseText('File not found');
-          setVerseText('Content Not Available');
+          setIsLoading(false)
+        } catch (conversionError) {
+          console.error('Error converting USFM to JSON:', conversionError);
+          setVerseText('Error converting content format');
         }
-        setLoading(false);
+
       } catch (error) {
-        console.log('Error reading verse JSON file:', error);
-        setLoading(false);
+        console.log('Error in loadTargetVerseText:', error);
         setVerseText('Error loading verse.');
+      } finally {
+        setIsLoadingRef(false);
+        setHasLoadedInitially(true);
       }
     },
-    [selectedRef, cachedData],
+    [selectedRef, cachedData, hasLoadedInitially],
   );
 
+  /**
+   * Converts a USFM file to JSON format and deletes the original USFM file.
+   * @param sourcePath - The path of the source USFM file.
+   * @param destinationPath - The path where the converted JSON file will be saved.
+   */
+  const convertUsfmToJson = async (sourcePath: string, destinationPath: string) => {
+    console.log(sourcePath, 'src', destinationPath, 'dest')
+    const usfmContent = await RNFS.readFile(sourcePath, 'utf8');
+    const usfmParser = new grammar.USFMParser(usfmContent);
+    const usfmJson = usfmParser.toJSON();
+    // console.log(usfmJson, 'usfmJson')
+    const jsonContent = JSON.stringify(usfmJson, null, 2);
+    const jsonFilePath = destinationPath.replace(/\.(usfm|SFM)$/i, '.json');
+
+    await RNFS.writeFile(jsonFilePath, jsonContent, 'utf8');
+    await RNFS.unlink(sourcePath);
+    console.log('USFM file deleted successfully.');
+  };
+
+  /**
+   * Loads the target verse text by reading metadata, finding the relevant USFM file,
+   * converting it to JSON if needed, and extracting the desired verse text.
+   * @param book - The book of the Bible.
+   * @param chapter - The chapter number.
+   * @param verse - The verse number.
+   */
+
+  const loadTargetVerseText = useCallback(
+    async (book: string, chapter: number, verse: number) => {
+      console.log("loadTargetVerseText", book, chapter, verse)
+      if (!projectPath) return;
+
+      // Set loading state only on initial load
+      if (!hasLoadedInitially) {
+        setIsLoadingTarget(true);
+      }
+
+      try {
+
+        // First try root metadata.json, then text-1/metadata.json
+        let metadataPath = `${projectPath}/metadata.json`;
+        let usfmFilePath = `${projectPath}`;
+        let ingredientsPath = `${projectPath}/ingredients`;
+        let metadataExists = (await RNFS.exists(metadataPath) && await RNFS.exists(ingredientsPath));
+
+        if (!metadataExists) {
+          usfmFilePath = `${projectPath}/text-1`;
+
+          metadataPath = `${projectPath}/text-1/metadata.json`;
+          metadataExists = await RNFS.exists(metadataPath);
+        }
+
+        if (!metadataExists) {
+          console.log('No metadata.json found in either location');
+          setTargetVerseText('Content Not Available');
+          return;
+        }
+
+        const metadataContent = await RNFS.readFile(metadataPath, 'utf8');
+        const metadata = JSON.parse(metadataContent);
+
+        if (!metadata.ingredients) {
+          console.log('No ingredients found in metadata');
+          setTargetVerseText('Content Not Available');
+          return;
+        }
+
+        // Find matching ingredient entry
+        const matchingIngredient = Object.entries(metadata.ingredients).find(([path, info]: [string, any]) => {
+          return (
+            info.mimeType === "text/x-usfm" &&
+            info.scope &&
+            Object.keys(info.scope).includes(book)
+          );
+        });
+        if (!matchingIngredient) {
+          console.log('No matching USFM file found for book:', book);
+          setTargetVerseText('Content Not Available');
+          return;
+        }
+        const [ingredientPath] = matchingIngredient;
+        const usfmPath = `${usfmFilePath}/${ingredientPath}`;
+        const jsonPath = usfmPath.replace(/\.(usfm|SFM)$/i, '.json');
+
+        // Check if converted JSON already exists in cache
+        if (cachedTargetData[jsonPath]) {
+          const bookData = cachedTargetData[jsonPath];
+          const selectedChapterObj = bookData?.chapters.find(
+            (chapterObj: any) => chapterObj.chapterNumber === chapter.toString(),
+          );
+
+          if (selectedChapterObj) {
+            const content = selectedChapterObj.contents.find(
+              (verseObj: any) => verseObj.verseNumber === verse.toString(),
+            );
+            setTargetVerseText(content ? content.verseText : 'Verse not found');
+          } else {
+            setTargetVerseText('Chapter not found');
+          }
+          setIsLoadingTarget(false);
+          setHasLoadedInitially(true);
+          return;
+        }
+
+        // New: Check if JSON file already exists on disk
+        const jsonExists = await RNFS.exists(jsonPath);
+        if (jsonExists) {
+          try {
+            const jsonData = await RNFS.readFile(jsonPath, 'utf8');
+            const bookData = JSON.parse(jsonData);
+
+            // Cache the existing JSON data
+            setCachedTargetData((prevCache: any) => ({
+              ...prevCache,
+              [jsonPath]: bookData,
+            }));
+
+            const selectedChapterObj = bookData.chapters.find(
+              (chapterObj: any) => chapterObj.chapterNumber === chapter.toString(),
+            );
+
+            if (selectedChapterObj) {
+              const content = selectedChapterObj.contents.find(
+                (verseObj: any) => verseObj.verseNumber === verse.toString(),
+              );
+              setTargetVerseText(content ? content.verseText : 'Verse not found');
+            } else {
+              setTargetVerseText('Chapter not found');
+            }
+            return;
+          } catch (jsonError) {
+            console.error('Error reading existing JSON file:', jsonError);
+            // Continue to USFM conversion if JSON reading fails
+          }
+        }
+        else {
+          // Check if USFM file exists
+          const usfmExists = await RNFS.exists(usfmPath);
+          if (!usfmExists) {
+            console.log('USFM file not found:', usfmPath);
+            setTargetVerseText('Content Not Available');
+            return;
+          }
+          else {
+            // Convert USFM to JSON
+            try {
+              setIsLoading(true)
+              await convertUsfmToJson(usfmPath, jsonPath);
+
+              console.log('read after usfm to json conversion')
+              // Read the converted JSON
+              const jsonData = await RNFS.readFile(jsonPath, 'utf8');
+              const bookData = JSON.parse(jsonData);
+
+              // Cache the converted data
+              setCachedTargetData((prevCache: any) => ({
+                ...prevCache,
+                [jsonPath]: bookData,
+              }));
+
+              const selectedChapterObj = bookData.chapters.find(
+                (chapterObj: any) =>
+                  chapterObj.chapterNumber === chapter.toString(),
+              );
+
+              if (selectedChapterObj) {
+                const content = selectedChapterObj.contents.find(
+                  (verseObj: any) => verseObj.verseNumber === verse.toString(),
+                );
+                setTargetVerseText(content ? content.verseText : 'Verse not found');
+              } else {
+                setTargetVerseText('Chapter not found');
+              }
+              setIsLoading(false)
+            } catch (conversionError) {
+              console.error('Error converting USFM to JSON:', conversionError);
+              setTargetVerseText('Error converting content format');
+            }
+          }
+        }
+      } catch (error) {
+        console.log('Error in loadTargetVerseText:', error);
+        setTargetVerseText('Error loading verse.');
+      } finally {
+        setIsLoadingTarget(false);
+        setHasLoadedInitially(true);
+      }
+
+    },
+    [projectPath, cachedTargetData],
+  );
+
+
+  /**
+   * Loads the current scope information from metadata.json and sets it in state.
+   */
   useEffect(() => {
     const loadCurrentScope = async () => {
       try {
@@ -362,20 +873,30 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
   }, [projectPath]);
 
 
-
+  /**
+   * Handles changes in selection of book, chapter, and verse, updating the state.
+   */
   const handleSelectionChange = useCallback(
     (book: string, chapter: number, verse: number) => {
-      setSelectedBook(book);
-      setSelectedChapter(chapter);
-      setSelectedVerse(verse);
-      if (selectedRef) {
-        loadVerseText(book, chapter, verse);
-      }
+
+      // Only update state if the values have actually changed
+      setSelectedBook((prevBook) =>
+        prevBook !== book ? book : prevBook
+      );
+      setSelectedChapter((prevChapter) =>
+        prevChapter !== chapter ? chapter : prevChapter
+      );
+      setSelectedVerse((prevVerse) =>
+        prevVerse !== verse ? verse : prevVerse
+      );
     },
-    [loadVerseText, selectedRef],
+    [] // Remove dependencies as state updaters are stable
   );
 
+
+
   useEffect(() => {
+    // Function to handle orientation updates
     const updateOrientation = () => {
       const { width, height } = Dimensions.get('window');
       const newIsPortrait = height >= width;
@@ -386,31 +907,53 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
         audioPlayerRef.current?.stopPlaying();
       }
     };
+    // Subscribe to orientation changes
+
     const subscription = Dimensions.addEventListener(
       'change',
       updateOrientation,
     );
+    // Initial calls
+
     updateOrientation();
     loadReferencesFromJson();
     return () => {
+      // Clean up subscription
+
       subscription?.remove?.();
     };
   }, [loadReferencesFromJson, isPortrait]);
 
   useEffect(() => {
-    if (selectedRef) {
+    // Check if all conditions are met to load verse texts
+
+    if (selectedRef && selectedBook && selectedChapter && selectedVerse) {
+
       loadVerseText(selectedBook, selectedChapter, selectedVerse);
     }
+    if (selectedBook && selectedChapter && selectedVerse) {
+      console.log('calling load target text with cond -selectedBook && selectedChapter && selectedVerse')
+      loadTargetVerseText(selectedBook, selectedChapter, selectedVerse);
+    }
+
   }, [
     selectedRef,
     selectedBook,
     selectedChapter,
     selectedVerse,
     loadVerseText,
+    loadTargetVerseText
   ]);
 
+
+  /**
+ * Updates appInfo.json with the selected reference resource for the current project.
+ * @param selectedReference - The reference resource to update in appInfo.json.
+ */
   const updateAppInfoJson = useCallback(async (selectedReference: ReferenceType) => {
-    const appInfoPath = `${RNFS.ExternalStorageDirectoryPath}/Download/OBTRecorderApp/appInfo.json`;
+    // const appInfoPath = `${RNFS.ExternalStorageDirectoryPath}/Download/OBTRecorderApp/appInfo.json`;
+
+    const appInfoPath = `${RNFS.DocumentDirectoryPath}/appInfo.json`;
 
     try {
       // Read the current appInfo.json
@@ -442,12 +985,17 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
 
 
 
+
   return (
     <View style={styles.container}>
-    
+      {(isLoading || isLoadingRef || isLoadingTarget) && <Loader visible={true} />}
+
       <View>
         {currentScope &&
-          <BookChapterVerseSelector onSelectionChange={handleSelectionChange} currentScope={currentScope} />
+          <BookChapterVerseSelector onSelectionChange={handleSelectionChange} currentScope={currentScope}
+            audioScope={audioScopes} // Pass the audio scopes to the selector 
+            projectName={projectName}
+          />
         }
       </View>
       {/* card code begins here */}
@@ -479,23 +1027,24 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
               shadowOpacity: 0.1,
               shadowRadius: 4,
               elevation: 3,
-            }}>
+            }}
+          >
             <View
               style={
                 // styles.cardTitleContainer,[]
                 {
-                  flexDirection:'row',
-                  alignItems:'center',
+                  flexDirection: 'row',
+                  alignItems: 'center',
                   height: 50,
                   // marginTop: 5,
                   width: '100%',
-                  borderBottomWidth: 1,
-                  borderColor: '#bdc3c7',
+                  borderBottomWidth: 2,
+                  borderColor: '#f7f1e3',
                   // alignContent:'center'
                 }
               }>
-          
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width:'100%'}}>
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                 <Text style={[styles.cardTitleText,]}>Reference</Text>
                 <SelectDropdown
                   data={referenceType}
@@ -503,16 +1052,18 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
                   onSelect={(selectedItem, index) => {
                     if (selectedItem.path) {
                       setSelectedRef(selectedItem);
+                      setVerseText(" ");
+                      setIsLoadingRef(true);
                       updateAppInfoJson(selectedItem);
                     }
                   }}
                   buttonTextAfterSelection={(selectedItem: { title: any; }) => {
                     return selectedItem ? selectedItem.title : 'Select Reference';
                   }}
-                  rowTextForSelection={(item) => {
+                  rowTextForSelection={(item: { title: any; }) => {
                     return item.title;
                   }}
-                  renderButtonText={(selectedItem) => {
+                  renderButtonText={(selectedItem: { title: any; }) => {
                     return selectedItem ? selectedItem.title : 'Select Reference';
                   }}
                   renderButton={(selectedItem, isOpened) => {
@@ -551,39 +1102,44 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
                   buttonTextStyle={styles.dropdownButtonTxtStyle}
                   dropdownStyle={styles.dropdownMenuStyle}
                 />
-                 
+
+
                 {/* <View style={{borderWidth:1}}>               */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width:'14%' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '14%' }}>
 
-                <TouchableOpacity onPress={decreaseFontSize}
+                  <TouchableOpacity onPress={decreaseFontSize}
                   // style={{ borderWidth: 1, borderColor: '#a4b0be' }}
-                >
-                  <Icon1 name="text-decrease" onPress={decreaseFontSize} size={20} color={fontSize <= 14 ? '#d3d3d3' : '#40739e'} />
+                  >
+                    <Icon1 name="text-decrease" onPress={decreaseFontSize} size={20} color={resFontSize <= 14 ? '#d3d3d3' : '#40739e'} />
 
-                </TouchableOpacity>
-                <TouchableOpacity onPress={increaseFontSize}
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={increaseFontSize}
                   // style={{ borderWidth: 1, borderColor: '#a4b0be' }}
-                >
-                  <Icon1 name="text-increase" size={20} color={fontSize >= 20 ? '#d3d3d3' : '#40739e'} />
+                  >
+                    <Icon1 name="text-increase" size={20} color={resFontSize >= 20 ? '#d3d3d3' : '#40739e'} />
 
-                </TouchableOpacity>
+                  </TouchableOpacity>
 
-               </View>
+                </View>
               </View>
             </View>
             <View style={[styles.cardContent, { marginTop: 10, }]}>
-              <ScrollView persistentScrollbar={true}>
-                {loading ? (
+              {isLoadingRef ? (
+                <View style={{ width: '100%', height: '100%', flexDirection: 'column', justifyContent: 'center' }}>
                   <ActivityIndicator size="large" color="#2980b9" />
-                ) : verseText === '' ? (
-                  <Text style={styles.emptySource}>
-                    Please select the Source Reference{' '}
-                  </Text>
-                ) : (
-                  <Text style={[styles.cardContentText, { fontSize }]}>{verseText} </Text>
-                )}
-              </ScrollView>
+                </View>
 
+              ) : (
+                <ScrollView persistentScrollbar={true}>
+                  {verseText === '' ? (
+                    <Text style={styles.emptySource}>
+                      Please select the Source Reference{' '}
+                    </Text>
+                  ) : (
+                    <Text style={[styles.cardContentText, { fontSize: resFontSize }]}>{verseText} </Text>
+                  )}
+                </ScrollView>
+              )}
             </View>
             {/* {isPortrait && ( */}
             <View style={styles.audioPlayerContainerPortrait}>
@@ -609,7 +1165,8 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
               shadowOpacity: 0.1,
               shadowRadius: 4,
               elevation: 3,
-            }}>
+            }}
+          >
             <View
               style={[
                 styles.cardTitleTextContainer,
@@ -617,34 +1174,31 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
                   padding: 5,
                   height: 50,
                   width: '100%',
-                  borderBottomWidth: 1,
-                  borderColor: '#bdc3c7'
+                  borderBottomWidth: 2,
+                  borderColor: '#f7f1e3'
                 },
               ]}>
-              {/* <Text style={styles.cardTitleText}> </Text> */}
-              {/* <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', height: '40%' }}> */}
-                {/* <TouchableOpacity onPress={decreaseFontSize}
-                  style={{ borderWidth: 1, marginRight: 10, borderColor: '#a4b0be' }}
-                >
-                  <Icon name="format-font-size-decrease" onPress={decreaseFontSize} size={20} color={fontSize <= 14 ? '#d3d3d3' : '#ff9f1a'} />
 
-                </TouchableOpacity>
-                <TouchableOpacity onPress={increaseFontSize}
-                  style={{ borderWidth: 1, marginRight: 10, borderColor: '#a4b0be' }}
-                >
-                  <Icon name="format-font-size-increase" size={20} color={fontSize >= 20 ? '#d3d3d3' : '#ff9f1a'} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flex: 1 }}>
 
-                </TouchableOpacity> */}
+                <Text style={styles.cardTitleText}>{`${projectName}`}</Text>
 
-               {/* </View> */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '14%' }}>
 
-              <Text style={styles.cardTitleText}>{`${projectName}`}</Text>
-              {/* <IconButton
-                icon="pencil"
-                size={isPortrait ? 24 : 20}
-                onPress={() => {}}
-              />*/}
+                  <TouchableOpacity onPress={decreaseTarFontSize}
+                  // style={{ borderWidth: 1, borderColor: '#a4b0be' }}
+                  >
+                    <Icon1 name="text-decrease" size={20} color={targetFontSize <= 14 ? '#d3d3d3' : '#40739e'} />
+
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={increaseTarFontSize}
+                  // style={{ borderWidth: 1, borderColor: '#a4b0be' }}
+                  >
+                    <Icon1 name="text-increase" size={20} color={targetFontSize >= 20 ? '#d3d3d3' : '#40739e'} />
+
+                  </TouchableOpacity>
+
+                </View>
               </View>
             </View>
             <View style={styles.cardContent}>
@@ -657,7 +1211,21 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
                   style={{textAlign:'justify'}}
                 />
               </ScrollView> */}
+              {isLoadingTarget ? (
+                <View style={{ width: '100%', height: '100%', flexDirection: 'column', justifyContent: 'center' }}>
+                  <ActivityIndicator size="large" color="#2980b9" />
+                </View>
+
+              ) : (
+
+                <ScrollView persistentScrollbar={true} >
+
+                  <Text style={[styles.cardContentText, { fontSize: targetFontSize }]}>{targetVerseText === '...' ? 'Content not Available' : targetVerseText} </Text>
+
+                </ScrollView>
+              )}
             </View>
+
             <View style={styles.audioRecorderContainer}>
 
               <AudioRecorder
@@ -667,33 +1235,15 @@ const ProjectEditorScreen: React.FC<Props> = ({ navigation, route }) => {
                 selectedChapter={selectedChapter}
                 selectedVerse={selectedVerse}
                 onMetadataUpdate={handleMetadataUpdate} // Add this prop
-                />
-                
+              />
+
             </View>
           </View>
         </View>
-        {/* </ScrollView>  */}
+
       </View>
-      {/* <View style={styles.audioControlsContainer}> */}
-      {/* {!isPortrait && (
-            <View style={styles.audioPlayerContainerLandscape}>
-              <AudioPlayer ref={audioPlayerRef}/>
-            </View>
-          )} */}
-      {/* <View style={styles.audioRecorderContainer}>
-            <AudioRecorder />
-          </View> */}
-      {/* </View> */}
-      {/*      
-      <CustomBottomSheet
-        ref={bottomSheetRef}
-        bottomSheetIndex={bottomSheetIndex}
-        onChange={(index) => setBottomSheetIndex(index)}
-        onOptionSelect={handleOptionSelect}
-        selectedOption={selectedOption}
-      /> */}
+
     </View>
-    // </View>
   );
 };
 
@@ -722,13 +1272,13 @@ const styles = StyleSheet.create({
   dropdownButtonStyle: {
     width: 200,
     height: 30,
-    borderColor: '#95a5a6',
+    borderColor: '#b2bec3',
     borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 12,
-    borderWidth: 1,
+    borderWidth: 2,
     backgroundColor: '#fff'
   },
   dropdownButtonTxtStyle: {
@@ -844,8 +1394,8 @@ const styles = StyleSheet.create({
     height: 50,
     marginTop: 5,
     width: '100%',
-    borderTopWidth: 1,
-    borderColor: '#bdc3c7'
+    borderTopWidth: 2,
+    borderColor: '#f7f1e3'
   },
   // audioPlayerContainerLandscape: {
   //   flex: 1,
@@ -863,8 +1413,8 @@ const styles = StyleSheet.create({
     height: 50,
     marginTop: 5,
     width: '100%',
-    borderTopWidth: 1,
-    borderColor: '#bdc3c7'
+    borderTopWidth: 2,
+    borderColor: '#f7f1e3'
   },
 
 });
