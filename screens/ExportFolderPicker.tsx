@@ -10,51 +10,39 @@ import {
 } from 'react-native';
 import RNFS from 'react-native-fs';
 
-// Define props for FolderPicker component
 type FolderPickerProps = {
   onSelectFolder: (path: string) => void;
   onCancel: () => void;
 };
 
-// Define the structure of metadata.json content
-interface MetadataFormat {
-  format: string;
-  type: {
-    flavorType: {
-      name: string;
-      flavor: {
-        name: string;
-        performance?: string[];
-        formats?: Record<string, any>;
-      };
-      currentScope?: Record<string, any>;
-    };
-  };
-  // Add other fields as needed
-}
-
-// Simple separator component for visual spacing
 const Separator = () => <View style={styles.separator} />;
 
-// FolderPicker component definition
-const FolderPicker: React.FC<FolderPickerProps> = ({
+/**
+ * Component to allow users to select a folder for export purposes.
+ * Props:
+ * - onSelectFolder: Callback function invoked with the selected folder path.
+ * - onCancel: Callback function invoked when the folder selection is canceled.
+ */
+const ExportFolderPicker: React.FC<FolderPickerProps> = ({
   onSelectFolder,
   onCancel,
 }) => {
-  const [items, setItems] = useState<{ path: string; isDirectory: boolean }[]>(
-    [],
-  );
+  const [items, setItems] = useState<{ path: string; isDirectory: boolean }[]>([]);
   const [currentPath, setCurrentPath] = useState<string>(
     RNFS.ExternalStorageDirectoryPath || RNFS.DocumentDirectoryPath,
   );
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
 
-  // Load folder contents whenever the currentPath changes
+  // Effect hook to load items whenever the current path changes.
   useEffect(() => {
     loadItems(currentPath);
   }, [currentPath]);
 
-  // Function to load items in the current directory
+
+  /**
+  * Loads the items (files and folders) from the given path.
+  * @param path - The directory path to read.
+  */
   const loadItems = async (path: string) => {
     try {
       const fileItems = await RNFS.readDir(path);
@@ -69,37 +57,22 @@ const FolderPicker: React.FC<FolderPickerProps> = ({
     }
   };
 
-  // Function to validate the content of metadata.json
-  const validateMetadata = async (filePath: string): Promise<boolean> => {
-    try {
-      const fileContent = await RNFS.readFile(filePath, 'utf8');
-      const metadata: MetadataFormat = JSON.parse(fileContent);
-      console.log(filePath, "fp")
-      // Check if it's a scripture burrito format
-      if (metadata.format !== 'scripture burrito') {
-        Alert.alert('Error', 'Invalid file format. Expected scripture burrito format.');
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Error validating metadata:', error);
-      Alert.alert('Error', 'Failed to validate metadata.json file.');
-      return false;
-    }
-  };
-
-  // Handle folder selection or navigation
+  /**
+ * Handles the selection of a folder or a file.
+ * Updates the current path if a folder is selected.
+ * @param path - The selected item's path.
+ * @param isDirectory - Boolean indicating if the item is a directory.
+ */
   const handleSelect = (path: string, isDirectory: boolean) => {
     if (isDirectory) {
-      setCurrentPath(path); // Navigate into the selected folder
+      setCurrentPath(path);
       setSelectedFolder(path);
     } else {
       Alert.alert('Error', 'Cannot select files, please choose a folder.');
     }
   };
 
-  // Navigate to the parent directory
+  //Handles navigation to the parent directory.
   const handleBack = () => {
     const parentDir = currentPath.substring(0, currentPath.lastIndexOf('/'));
     if (parentDir && parentDir !== currentPath) {
@@ -108,31 +81,25 @@ const FolderPicker: React.FC<FolderPickerProps> = ({
     }
   };
 
-  // Confirm folder selection
-  const handleConfirmSelection = async () => {
+
+  /**
+ * Confirms the selection of the currently selected folder.
+ * Invokes the `onSelectFolder` callback with the selected folder path.
+ */
+  const handleConfirmSelection = () => {
     if (selectedFolder) {
-      // Check for metadata.json file in the selected folder
-      const metadataFilePath = `${selectedFolder}/metadata.json`;
-      const fileExists = await RNFS.exists(metadataFilePath);
-
-      if (!fileExists) {
-        Alert.alert('Error', 'Unable to find burrito file (metadata.json).');
-        return;
-      }
-
-      // Validate the metadata.json content
-      const isValid = await validateMetadata(metadataFilePath);
-      if (isValid) {
-        onSelectFolder(selectedFolder);
-      }
+      onSelectFolder(selectedFolder);
     } else {
       Alert.alert('Error', 'No folder selected.');
     }
   };
 
-  // Cancel the folder selection process
+
+  /**
+  * Cancels the folder selection process.
+  * Resets the state and invokes the `onCancel` callback.
+  */
   const handleCancel = () => {
-    // Reset selections
     setCurrentPath(
       RNFS.ExternalStorageDirectoryPath || RNFS.DocumentDirectoryPath,
     );
@@ -143,6 +110,7 @@ const FolderPicker: React.FC<FolderPickerProps> = ({
 
   return (
     <View style={styles.container}>
+      <Text style={styles.pathText}>Current Path: {currentPath}</Text>
       <Button
         title="Back"
         onPress={handleBack}
@@ -156,17 +124,20 @@ const FolderPicker: React.FC<FolderPickerProps> = ({
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => handleSelect(item.path, item.isDirectory)}
-            style={styles.itemContainer}>
+            style={[
+              styles.itemContainer,
+              selectedFolder === item.path && styles.selectedItem,
+            ]}>
             <Text style={styles.item}>
               {item.isDirectory ? '📁 ' : '📄 '}
-              {item.path.split('/').pop()} {/* Display file or folder name */}
+              {item.path.split('/').pop()}
             </Text>
           </TouchableOpacity>
         )}
         keyExtractor={item => item.path}
       />
       <Button
-        title="Select Folder"
+        title="Select This Folder"
         onPress={handleConfirmSelection}
       />
       <Separator />
@@ -181,14 +152,22 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: 'black',
   },
+  pathText: {
+    color: 'white',
+    fontSize: 14,
+    marginBottom: 8,
+  },
   itemContainer: {
     padding: 16,
+  },
+  selectedItem: {
+    backgroundColor: '#333',
   },
   item: {
     fontSize: 18,
     borderBottomWidth: 1,
     borderBottomColor: '#ccc',
-    color: 'white', // Ensure text is visible on black background
+    color: 'white',
   },
   separator: {
     marginVertical: 8,
@@ -197,4 +176,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FolderPicker;
+export default ExportFolderPicker;

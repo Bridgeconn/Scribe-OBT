@@ -33,11 +33,10 @@ interface MetadataFormat {
   // Add other fields as needed
 }
 
-// Simple separator component for visual spacing
 const Separator = () => <View style={styles.separator} />;
 
 // FolderPicker component definition
-const FolderPicker: React.FC<FolderPickerProps> = ({
+const FolderPickerRef: React.FC<FolderPickerProps> = ({
   onSelectFolder,
   onCancel,
 }) => {
@@ -80,7 +79,6 @@ const FolderPicker: React.FC<FolderPickerProps> = ({
         Alert.alert('Error', 'Invalid file format. Expected scripture burrito format.');
         return false;
       }
-
       return true;
     } catch (error) {
       console.error('Error validating metadata:', error);
@@ -115,15 +113,44 @@ const FolderPicker: React.FC<FolderPickerProps> = ({
       const metadataFilePath = `${selectedFolder}/metadata.json`;
       const fileExists = await RNFS.exists(metadataFilePath);
 
-      if (!fileExists) {
-        Alert.alert('Error', 'Unable to find burrito file (metadata.json).');
-        return;
+      if (fileExists) {
+        // Validate the metadata.json content
+        const isValid = await validateMetadata(metadataFilePath);
+        if (isValid) {
+          onSelectFolder(selectedFolder);
+          return;
+        }
       }
 
-      // Validate the metadata.json content
-      const isValid = await validateMetadata(metadataFilePath);
-      if (isValid) {
-        onSelectFolder(selectedFolder);
+      // If metadata.json doesn't exist or is invalid, check for .usfm/.sfm files and a .yaml file
+      try {
+        const fileItems = await RNFS.readDir(selectedFolder);
+
+        // Check for .usfm or .sfm files
+        const usfmSfmFiles = fileItems.filter(item =>
+          !item.isDirectory() &&
+          /\.(usfm|sfm)$/i.test(item.path)
+        );
+
+        // Check for .yaml file
+        const yamlFiles = fileItems.filter(item =>
+          !item.isDirectory() &&
+          /\.yaml$/i.test(item.path)
+        );
+
+        // Validate that both conditions are met
+        if (usfmSfmFiles.length > 0 && yamlFiles.length > 0) {
+          // If both .usfm/.sfm files and a .yaml file are found, select the folder
+          onSelectFolder(selectedFolder);
+        } else {
+          Alert.alert(
+            'Error',
+            'Folder must contain at least one .usfm or .sfm file AND a .yaml file.'
+          );
+        }
+      } catch (error) {
+        console.error('Error checking folder contents:', error);
+        Alert.alert('Error', 'Failed to check folder contents.');
       }
     } else {
       Alert.alert('Error', 'No folder selected.');
@@ -197,4 +224,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FolderPicker;
+export default FolderPickerRef;

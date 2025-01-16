@@ -1,5 +1,4 @@
 import React, {useState} from 'react';
-// import React, {useState, useEffect} from 'react';
 import {
   Modal,
   View,
@@ -7,48 +6,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   Button,
-  // Dimensions,
 } from 'react-native';
 import {SvgXml} from 'react-native-svg';
 import ListBiblePage from './ListBiblePage';
 import ListAudioPage from './ListAudioPage';
 import ImportResourcePage from './ImportResourcePage';
-// import ResourcePage from './ResourcePage';
 import {Portal, Provider} from 'react-native-paper';
-// import ImportReferenceCollectionModal from './ImportReferenceCollectionModal';
 
-// interface ImportReferenceModalProps {
-//   visible: boolean;
-//   onClose: () => void;
-// }
 
-// const ImportReferenceModal: React.FC<ImportReferenceModalProps> = ({}) => {
   const ImportReferenceModal: React.FC = ({}) => {
   const [selectedSubTab, setSelectedSubTab] = useState<
-    // 'Audio' | 'Bible' | 'Resource' | 'Collection'
     'Audio' | 'Bible' | 'Collection'
   >('Audio');
-
-  // const [isPortrait, setIsPortrait] = useState(true);
-
-  // useEffect(() => {
-  //   const updateOrientation = () => {
-  //     const {width, height} = Dimensions.get('window');
-  //     setIsPortrait(height >= width);
-  //   };
-
-  //   const subscription = Dimensions.addEventListener(
-  //     'change',
-  //     updateOrientation,
-  //   );
-  //   updateOrientation(); // Check orientation on initial load
-
-  //   return () => {
-  //     if (subscription && typeof subscription.remove === 'function') {
-  //       subscription.remove();
-  //     }
-  //   };
-  // }, []);
 
   const addIcon = (isSelected: boolean) =>
     `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="${
@@ -85,25 +54,7 @@ import {Portal, Provider} from 'react-native-paper';
           Bible
         </Text>
       </TouchableOpacity>
-      {/* <TouchableOpacity
-        style={[
-          styles.subTabButton,
-          selectedSubTab === 'Resource' && styles.activeSubTab,
-        ]}
-        onPress={() => setSelectedSubTab('Resource')}>
-        <SvgXml
-          xml={addIcon(selectedSubTab === 'Resource')}
-          width="15"
-          height="15"
-        />
-        <Text
-          style={[
-            styles.subTabText,
-            selectedSubTab === 'Resource' && styles.activeSubTabText,
-          ]}>
-          Resource
-        </Text>
-      </TouchableOpacity> */}
+     
       <TouchableOpacity
         style={[
           styles.subTabButton,
@@ -128,12 +79,7 @@ import {Portal, Provider} from 'react-native-paper';
 
   return (
     <Provider>
-      {/* <Portal>
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={visible}
-          onRequestClose={onClose}> */}
+     
 
       <View style={styles.modalContent}>
         <View style={styles.tabsWrapper}>
@@ -147,7 +93,7 @@ import {Portal, Provider} from 'react-native-paper';
               ) : selectedSubTab === 'Collection' ? (
                 <ImportResourcePage />
               ) : (
-                // <ResourcePage />
+              
                 <></>
               )}
             </View>
@@ -155,37 +101,21 @@ import {Portal, Provider} from 'react-native-paper';
         </View>
       </View>
 
-      {/* </Modal>
-      </Portal> */}
+      
     </Provider>
   );
 };
 
 const styles = StyleSheet.create({
-  // modalContainer: {
-  //   flex: 1,
-  //   justifyContent: 'center',
-  //   // alignItems: 'center',
-  //   // backgroundColor: 'rgba(0,0,0,0.5)',
-  // },
+ 
   modalContent: {
     backgroundColor: 'white',
-    // borderRadius: 10,
-    // paddingVertical: 20,
     paddingHorizontal: 10,
     width: '100%',
     height: '99%',
     flexDirection: 'row',
   },
-  // closeButtonContainer: {
-  //   position: 'absolute',
-  //   top: 10,
-  //   right: 10,
-  //   width: 40,
-  //   height: 40,
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  // },
+  
   tabsWrapper: {
     flex: 1,
     flexDirection: 'row',
@@ -200,8 +130,7 @@ const styles = StyleSheet.create({
     paddingTop: 1,
     paddingLeft: 1,
     paddingRight: 1,
-    // borderTopLeftRadius: 8,
-    // borderTopRightRadius: 8,
+
   },
   subTabButton: {
     flex: 1,
@@ -214,8 +143,7 @@ const styles = StyleSheet.create({
   },
   activeSubTab: {
     backgroundColor: '#3498db',
-    // borderTopLeftRadius: 8,
-    // borderTopRightRadius: 8,
+
   },
   subTabText: {
     fontSize: 16,

@@ -7,34 +7,42 @@ import {
   FinishMode,
 } from '@simform_solutions/react-native-audio-waveform';
 
+// Define the interface for the parent component to call the stopPlaying function
 export interface AudioPlayerRef {
   stopPlaying: () => Promise<void>;
 }
 
+
+// Define the interface for component props
 interface AudioPlayerProps {
   url: string;
 }
 
-const AudioPlayerComponent: ForwardRefRenderFunction<AudioPlayerRef, AudioPlayerProps> = ({ url }, ref) => {
-  const waveformRef = useRef<IWaveformRef>(null);
-  const [playing, setPlaying] = useState(false);
-  const [key, setKey] = useState(0); // Add this line to create a key state
+// AudioPlayerComponent: Renders the audio player with waveform and controls
 
+const AudioPlayerComponent: ForwardRefRenderFunction<AudioPlayerRef, AudioPlayerProps> = ({ url }, ref) => {
+  const waveformRef = useRef<IWaveformRef>(null); // Reference to the Waveform component
+  const [playing, setPlaying] = useState(false); // State to track playback status
+  const [key, setKey] = useState(0); // Key state to force re-rendering of the waveform when URL changes
+
+   // Effect to reset player state when the URL changes
   useEffect(() => {
-    // console.log(url, "url in audioplayer");
-    setPlaying(false);
+    setPlaying(false);  // Stop playback
     if (waveformRef.current) {
-      waveformRef.current.stopPlayer();
+      waveformRef.current.stopPlayer();  // Stop the player if running
     }
     setKey(prevKey => prevKey + 1); // Increment the key to force re-render of Waveform
+
   }, [url]);
 
+   // Expose the stopPlaying function to parent components using a ref
   useImperativeHandle(ref, () => ({
     stopPlaying: async () => {
       await stopPlaying();
     },
   }));
 
+   // Function to toggle playback (play or pause)
   const togglePlayback = async () => {
     if (url) {
       if (playing) {
@@ -56,6 +64,7 @@ const AudioPlayerComponent: ForwardRefRenderFunction<AudioPlayerRef, AudioPlayer
     }
   };
 
+    // Function to stop audio playback
   const stopPlaying = async () => {
     try {
       if (url) {

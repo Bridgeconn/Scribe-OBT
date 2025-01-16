@@ -31,8 +31,10 @@ interface AppInfo {
 
 const ListBiblePage: React.FC = () => {
   const [data, setData] = useState<TableData[]>([]);
-  const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
+  // const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
+  const baseFolderPath = RNFS.DocumentDirectoryPath;
   const appInfoPath = `${baseFolderPath}/appInfo.json`;
+  const [isLoading, setIsLoading] = React.useState(false);
 
    // Delete icon SVG
    const deleteIcon = `
@@ -41,123 +43,170 @@ const ListBiblePage: React.FC = () => {
    </svg>
  `;
 
-  useEffect(() => {
-    // Function to load references from appInfo.json
-    const loadReferences = async () => {
-      try {
-        // const appInfoPath = `${RNFS.DownloadDirectoryPath}/appInfo.json`;
-        // const baseFolderPath = '/storage/emulated/0/Download/OBTRecorderApp';
-        // const appInfoPath = `${baseFolderPath}/appInfo.json`;
-        const appInfo = await RNFS.readFile(appInfoPath, 'utf8');
-        const parsedInfo = JSON.parse(appInfo);
-
-        const references = parsedInfo.references || [];
-        const tableData: TableData[] = [];
-
-        for (const reference of references) {
-          const metadataPath = `${reference.referencePath}/text-1/metadata.json`;
-          if (await RNFS.exists(metadataPath)) {
-            const metadata = JSON.parse(
-              await RNFS.readFile(metadataPath, 'utf8'),
-            );
-            const {languages, identification} = metadata;
-            if(reference.referenceType.includes("Bible"))
-              {
-                const primaryKey = Object.keys(identification.primary)[0]; // Gets "scribe" (or the unknown key)
-                const uniqueId = Object.keys(identification.primary[primaryKey])[0]; // Gets the UUID
-  
-            tableData.push({
-              name: reference.referenceName,
-              type: (reference.referenceType.includes("Bible") && reference.referenceType.includes("Audio")) ?'Both':'Bible' ,
-              // type: type || 'Unknown',
-              languageName: languages[0].name.en || 'Unknown',
-              version: uniqueId || 'Unknown',
-            });
-          }
-          } else {
-            Alert.alert(
-              'Metadata not found',
-              `Metadata file not found for ${reference.referenceName}`,
-            );
-          }
-        }
-
-        setData(tableData);
-      } catch (error) {
-        console.error('Error loading references:', error);
-      }
-    };
-
-    loadReferences();
-  }, []);
-
-  const handleDelete = async (itemName: string) => {
+ useEffect(() => {
+  // Function to load references from appInfo.json
+  const loadReferences = async () => {
     try {
-      // Read current appInfo.json
-      const appInfoContent = await RNFS.readFile(appInfoPath, 'utf8');
-      const appInfo: AppInfo = JSON.parse(appInfoContent);
+     
+      const appInfo = await RNFS.readFile(appInfoPath, 'utf8');
+      const parsedInfo = JSON.parse(appInfo);
 
-      // Check if any project is using this reference
-      const projectsUsingReference = appInfo.projects.filter(
-        project => project.referenceResource === itemName
-      );
+      const references = parsedInfo.references || [];
+      const tableData: TableData[] = [];
 
-      if (projectsUsingReference.length > 0) {
-        Alert.alert(
-          'Warning',
-          `This reference is being used by ${projectsUsingReference.length} project(s). Are you sure you want to delete it?`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel'
-            },
-            {
-              text: 'Yes',
-              onPress: () => performDelete(itemName, appInfo)
-            }
-          ]
-        );
-      } else {
-        performDelete(itemName, appInfo);
-      }
-    } catch (error) {
-      console.error('Error handling delete:', error);
-      Alert.alert('Error', 'Failed to delete reference');
-    }
-  };
+     // Inside the loadReferences function, modify the for loop
+for (const reference of references) {
+  const metadataPath = `${reference.referencePath}/text-1/metadata.json`;
+  const metadataPath1 = `${reference.referencePath}/metadata.json`;
+  const manifestPath = `${reference.referencePath}/manifest.yaml`;
 
-  const performDelete = async (itemName: string, appInfo: AppInfo) => {
-    try {
-      // Delete the reference folder
-      const referencePath = `${baseFolderPath}/references/${itemName}`;
-      await RNFS.unlink(referencePath);
+  // Check first metadata path
+  if (await RNFS.exists(metadataPath)) {
+    const metadata = JSON.parse(await RNFS.readFile(metadataPath, 'utf8'));
+    const { languages, identification } = metadata;
 
-      // Update projects that use this reference
-      appInfo.projects = appInfo.projects.map(project => {
-        if (project.referenceResource === itemName) {
-          return { ...project, referenceResource: '' };
-        }
-        return project;
+    if (reference.referenceType.includes("Bible")) {
+      const primaryKey = Object.keys(identification.primary)[0];
+      const uniqueId = Object.keys(identification.primary[primaryKey])[0];
+      const revision = identification.primary[primaryKey][uniqueId]['revision'];
+
+      tableData.push({
+        name: reference.referenceName,
+        type: (reference.referenceType.includes("Bible") && reference.referenceType.includes("Audio"))
+          ? ' Audio , Bible ' : 'Bible',
+        languageName: languages[0].name.en || 'Unknown',
+        version: revision || 'Unknown',
       });
+    }
+  }
+  // Check alternative metadata path
+  else if (await RNFS.exists(metadataPath1)) {
+    const metadata = JSON.parse(await RNFS.readFile(metadataPath1, 'utf8'));
+    const { languages, identification } = metadata;
 
-      // Remove the reference from references array
-      appInfo.references = appInfo.references.filter(
-        ref => ref.referenceName !== itemName
-      );
+    if (reference.referenceType.includes("Bible")) {
+      const primaryKey = Object.keys(identification.primary)[0];
+      const uniqueId = Object.keys(identification.primary[primaryKey])[0];
+      const revision = identification.primary[primaryKey][uniqueId]['revision'];
 
-      // Write updated appInfo back to file
-      await RNFS.writeFile(appInfoPath, JSON.stringify(appInfo, null, 2));
+      tableData.push({
+        name: reference.referenceName,
+        type: (reference.referenceType.includes("Bible") && reference.referenceType.includes("Audio"))
+          ? ' Audio , Bible ' : 'Bible',
+        languageName: languages[0].name.en || 'Unknown',
+        version: revision || 'Unknown',
+      });
+    }
+  }
+  // Check manifest.yaml path
+  else if (await RNFS.exists(manifestPath)) {
+    try {
+      const manifestContent = await RNFS.readFile(manifestPath, 'utf8');
+      // Use a YAML parser like js-yaml
+      const manifest = require('js-yaml').load(manifestContent);
 
-      // Update the UI
-      setData(prevData => prevData.filter(item => item.name !== itemName));
-
-      Alert.alert('Success', 'Reference deleted successfully');
+      if (reference.referenceType.includes("Bible")) {
+        tableData.push({
+          name: reference.referenceName,
+          type: (reference.referenceType.includes("Bible") && reference.referenceType.includes("Audio"))
+            ? ' Audio , Bible ' : 'Bible',
+          languageName: manifest.dublin_core?.language?.title || 'Unknown',
+          version: manifest.dublin_core?.version || 'Unknown',
+        });
+      }
     } catch (error) {
-      console.error('Error performing delete:', error);
-      Alert.alert('Error', 'Failed to delete reference');
+      console.error(`Error parsing manifest for ${reference.referenceName}:`, error);
+    }
+  }
+  // If no metadata file exists, show alert
+  else {
+    Alert.alert(
+      'Metadata not found',
+      `Metadata file not found for ${reference.referenceName}`,
+    );
+  }
+
+      }
+
+      setData(tableData);
+    } catch (error) {
+      console.error('Error loading references:', error);
     }
   };
 
+  loadReferences();
+}, []);
+
+  // Function to handle the deletion of a reference
+const handleDelete = async (itemName: string) => {
+  try {
+    // Read current appInfo.json
+    const appInfoContent = await RNFS.readFile(appInfoPath, 'utf8');
+    const appInfo: AppInfo = JSON.parse(appInfoContent);
+
+    // Check if any project is using this reference
+    const projectsUsingReference = appInfo?.projects?.filter(
+      project => project?.referenceResource === itemName
+    );
+
+    if (projectsUsingReference?.length > 0) {
+      Alert.alert(
+        'Warning',
+        `This reference is being used by ${projectsUsingReference.length} project(s). Are you sure you want to delete it?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Yes',
+            onPress: () => performDelete(itemName, appInfo)
+          }
+        ]
+      );
+    } else {
+      performDelete(itemName, appInfo);
+    }
+  } catch (error) {
+    console.error('Error handling delete:', error);
+    Alert.alert('Error', 'Failed to delete reference');
+  }
+};
+
+  // Function to perform the actual deletion of a reference
+const performDelete = async (itemName: string, appInfo: AppInfo) => {
+  try {
+    setIsLoading(true)
+
+    // Delete the reference folder
+    const referencePath = `${baseFolderPath}/references/${itemName}`;
+    await RNFS.unlink(referencePath);
+
+    // Update projects that use this reference
+    appInfo.projects = appInfo?.projects?.map(project => {
+      if (project.referenceResource === itemName) {
+        return { ...project, referenceResource: '' };
+      }
+      return project;
+    });
+
+    // Remove the reference from references array
+    appInfo.references = appInfo.references.filter(
+      ref => ref.referenceName !== itemName
+    );
+
+    // Write updated appInfo back to file
+    await RNFS.writeFile(appInfoPath, JSON.stringify(appInfo, null, 2));
+
+    // Update the UI
+    setData(prevData => prevData.filter(item => item.name !== itemName));
+    setIsLoading(false);
+    Alert.alert('Success', 'Reference deleted successfully');
+  } catch (error) {
+    console.error('Error performing delete:', error);
+    Alert.alert('Error', 'Failed to delete reference');
+  }
+};
   const renderItem = ({item}: {item: TableData}) => (
     <View style={styles.row}>
       <Text style={styles.cell}>{item.name}</Text>
@@ -216,6 +265,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
+    alignItems:'center'
+
   },
   cell: {
     flex: 1,

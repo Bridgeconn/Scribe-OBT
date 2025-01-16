@@ -25,7 +25,8 @@ const DarkLightToggle: React.FC<ToggleButtonProps> = ({onToggle}) => {
       <View
         style={[
           styles.container,
-          {backgroundColor: isDarkMode ? '#000' : '#fff'},
+          {backgroundColor: isDarkMode ? '#000' : '#fff' ,borderWidth: isDarkMode? 0: 1, borderColor:'#D8DBBD'},
+
         ]}>
         {/* <Text style={styles.label}>Light Mode</Text> */}
         {isDarkMode ? (
